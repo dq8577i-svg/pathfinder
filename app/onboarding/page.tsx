@@ -6,11 +6,11 @@ import { useAppStore } from "@/lib/store";
 import { Button, Card, Badge, Divider, SectionHeading } from "@/components/ui";
 import { OfflineState, DemoTag, AiNote } from "@/components/states";
 import { RequireAuth } from "@/components/guards";
-import { pathFor } from "@/lib/demo";
+import { pathFor, demoPlanOf, buildDemoTopicBundle } from "@/lib/demo";
 import { formatDate, cn } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { previewPath, confirmPath } from "@/lib/api/paths";
-import { learningGoalSchema, EXAMPLE_TOPICS, goalProfileOf, type LearningGoalInput } from "@/lib/plan/goal";
+import { learningGoalSchema, EXAMPLE_TOPICS, type LearningGoalInput } from "@/lib/plan/goal";
 import type { LearningPath, PathRationale } from "@/lib/types";
 
 const HOUR_CHIPS = [2, 5, 8, 15];
@@ -35,41 +35,6 @@ function weeksNote(w: number): string {
   const end = new Date(Date.now() + w * 7 * 86400000);
   const months = Math.round(((w * 7) / 30) * 10) / 10;
   return `期限 ${w} 周（约 ${months} 个月），预计 ${formatDate(end.toISOString())} 前后完成`;
-}
-
-/** demo 模式下的确定性规划（与 lib/ai/mock 对齐的通用骨架），不伪装成真实 AI */
-function demoPlanOf(goal: LearningGoalInput): { title: string; rationale: PathRationale } {
-  const skills = [
-    { name: `${goal.topic} 基础入门`, reason: `建立「${goal.topic}」的概念与最小知识闭环` },
-    { name: `${goal.topic} 核心方法`, reason: `掌握${goal.topic}最关键的方法与工具` },
-    { name: `${goal.topic} 综合实战`, reason: `通过真实任务把前两步串起来` },
-  ];
-  const weeks = [
-    { week: 1, skills: [skills[0].name] },
-    { week: 2, skills: [skills[1].name] },
-    { week: 3, skills: [skills[2].name] },
-  ];
-  const title = `${goal.topic}学习路径`;
-  return {
-    title,
-    rationale: {
-      kind: "generic",
-      topic: goal.topic,
-      goal: goal.goal,
-      currentLevel: goal.currentLevel,
-      weeklyHours: goal.weeklyHours,
-      deadlineWeeks: goal.deadlineWeeks,
-      preferences: goal.preferences,
-      title,
-      rationale: `围绕「${goal.topic}」，按「基础 → 方法 → 实战」推进；每周 ${goal.weeklyHours} 小时，共 ${goal.deadlineWeeks} 周。`,
-      skills,
-      weeks,
-      goalProfile: goalProfileOf(goal),
-      providerLabel: "AI 整理（演示）· Mock 编排",
-      searchProviderLabel: "Search Provider Mock",
-      generatedAt: new Date().toISOString(),
-    },
-  };
 }
 
 function Onboarding() {
@@ -183,10 +148,18 @@ function Onboarding() {
       }
       return;
     }
+    // demo：写入完整主题数据包（路径 + 全模块派生数据），各模块据此与主题保持一致
+    const bundle = buildDemoTopicBundle(goal);
     try {
       window.localStorage.setItem(
         "pf-onboarded",
-        JSON.stringify({ goal, generatedAt: new Date().toISOString(), title: `${goal.topic}学习路径` }),
+        JSON.stringify({
+          version: 2,
+          goal,
+          generatedAt: bundle.generatedAt,
+          title: bundle.title,
+          bundle,
+        }),
       );
     } catch {
       /* ignore storage failure */

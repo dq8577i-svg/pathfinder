@@ -6,6 +6,8 @@ import { Badge, ButtonLink, Card } from "@/components/ui";
 import { DemoTag } from "@/components/states";
 import { isApiMode } from "@/lib/data-source";
 import { SCENARIOS, SCENARIO_SESSION_ACTIVE, SCENARIO_SESSION_DONE } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
+import { LoadingState } from "@/components/states";
 import { LabsApiView } from "./api-view";
 import type { BadgeTone } from "@/components/ui";
 import type { Scenario } from "@/lib/types";
@@ -41,16 +43,23 @@ function sessionMeta(id: string): { label: string; tone: BadgeTone; inProgress: 
 
 export default function LabsPage() {
   if (isApiMode) return <LabsApiView />;
+  const { data: topic, ready } = useDemoTopic();
+  if (!ready) return <LoadingState label="正在加载情境练习场…" />;
+  const scenarios = topic ? topic.scenarios : SCENARIOS;
   return (
     <FeatureGate flag="scenario_labs">
       <PageHeader
         title="情境练习场"
-        description="把产品知识放进工作对话：向 AI 扮演的业务方、研发或设计澄清、解释与辩护，获得基于 Rubric 的复盘。场景为教学模拟，不代表真实面试。"
+        description={
+          topic
+            ? `围绕「${topic.goal.topic}」的工作场景练习：向 AI 扮演的业务协作方澄清、解释与辩护，获得基于 Rubric 的复盘。场景为教学模拟，不代表真实工作考核。`
+            : "把产品知识放进工作对话：向 AI 扮演的业务方、研发或设计澄清、解释与辩护，获得基于 Rubric 的复盘。场景为教学模拟，不代表真实面试。"
+        }
         meta={<DemoTag />}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        {SCENARIOS.map((s) => {
+        {scenarios.map((s) => {
           const meta = sessionMeta(s.id);
           return (
             <Card key={s.id} className="flex flex-col p-5">

@@ -16,6 +16,7 @@ import {
   ADMIN_FLAGS,
   TENANT,
 } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
 import { formatMinutes, relativeTime } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { listPaths, getPath } from "@/lib/api/paths";
@@ -155,6 +156,7 @@ function ApiHome() {
 
 function NewLearnerHome() {
   const profile = useAppStore((s) => s.profile);
+  const { data: topic, ready } = useDemoTopic();
   const [onboarded, setOnboarded] = useState<OnboardedData | null>(null);
   const [checked, setChecked] = useState(false);
 
@@ -163,7 +165,7 @@ function NewLearnerHome() {
     setChecked(true);
   }, []);
 
-  if (!checked) return <LoadingState label="正在读取学习状态…" />;
+  if (!ready || !checked) return <LoadingState label="正在读取学习状态…" />;
 
   if (!onboarded) {
     return (
@@ -222,6 +224,23 @@ function NewLearnerHome() {
         <p className="mt-4 text-sm text-ink-2">
           围绕「{goal.topic}」按基础 → 方法 → 实战推进，共 {goal.deadlineWeeks} 周、每周 {goal.weeklyHours} 小时。
         </p>
+        {topic ? (
+          <>
+            <div className="mt-4">
+              <ProgressBar
+                value={topic.path.progress.completed}
+                max={topic.path.progress.total}
+                label={`${topic.path.progress.completed}/${topic.path.progress.total} 节点`}
+              />
+            </div>
+            <p className="mt-2 text-xs text-ink-3">
+              当前节点：
+              {topic.path.currentNodeId
+                ? topic.path.nodes.find((n) => n.id === topic.path.currentNodeId)?.title ?? "—"
+                : "—"}
+            </p>
+          </>
+        ) : null}
         <div className="mt-5">
           <ButtonLink href="/path">进入路径</ButtonLink>
         </div>

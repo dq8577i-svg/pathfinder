@@ -8,6 +8,8 @@ import { Badge, ButtonLink, Card, ProgressBar, Skeleton } from "@/components/ui"
 import { DemoTag } from "@/components/states";
 import { isApiMode } from "@/lib/data-source";
 import { REVIEW_DUE_CARDS } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
+import { LoadingState } from "@/components/states";
 import { ReviewApiView } from "./api-view";
 import type { MemoryCard, ReviewRating } from "@/lib/types";
 import { mockFetch, throwByState } from "@/lib/utils";
@@ -50,23 +52,30 @@ function nextEase(card: MemoryCard, rating: ReviewRating): number {
 
 export default function ReviewPage() {
   if (isApiMode) return <ReviewApiView />;
+  const { data: topic, ready } = useDemoTopic();
   const demoState = useAppStore((s) => s.demoState);
   const pushToast = useAppStore((s) => s.pushToast);
 
-  const total = REVIEW_DUE_CARDS.length;
   const [loading, setLoading] = useState(true);
-  const [queue, setQueue] = useState<MemoryCard[]>(REVIEW_DUE_CARDS);
+  const [queue, setQueue] = useState<MemoryCard[] | null>(null);
   const [answered, setAnswered] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [lastNodeId, setLastNodeId] = useState<string | null>(null);
 
+  const cards = topic ? topic.cards : REVIEW_DUE_CARDS;
+  const total = cards.length;
+
   useEffect(() => {
+    if (!ready) return;
+    setQueue(cards);
     const t = setTimeout(() => setLoading(false), 500);
     return () => clearTimeout(t);
-  }, []);
+  }, [ready, cards]);
 
-  const card = queue[0];
+  if (!ready) return <LoadingState label="正在加载复习中心…" />;
+
+  const card = queue?.[0] ?? null;
 
   async function handleRate(rating: ReviewRating) {
     if (!card || submitting) return;
@@ -77,7 +86,7 @@ export default function ReviewPage() {
         { intervalDays: nextInterval(card, rating), easeFactor: nextEase(card, rating) },
         { latency: [300, 600] },
       );
-      setQueue((q) => q.slice(1));
+      setQueue((q) => (q ?? []).slice(1));
       setAnswered((a) => a + 1);
       setFlipped(false);
       setLastNodeId(card.nodeId);
@@ -96,13 +105,13 @@ export default function ReviewPage() {
         description="基于间隔复习安排今日回顾；自评会更新下次复习时间并计入技能证据，但不作为能力认证。"
         meta={
           <>
-            <Badge tone="info">今日待复习 {loading ? total : queue.length} 张</Badge>
+            <Badge tone="info">今日待复习 {loading ? total : (queue?.length ?? 0)} 张</Badge>
             <DemoTag />
           </>
         }
       />
 
-      {loading ? (
+      {loading || !queue ? (
         <ReviewSkeleton />
       ) : total === 0 ? (
         <Card className="flex min-h-[320px] flex-col items-center justify-center gap-3 px-6 py-12 text-center">
@@ -113,10 +122,10 @@ export default function ReviewPage() {
           </ButtonLink>
         </Card>
       ) : queue.length === 0 ? (
-        <CompleteState lastNodeId={lastNodeId} />
+        <CompleteState lastNodeId={lastNodeId} total={total} />
       ) : (
         <ReviewSession
-          card={card}
+          card={queue[0]}
           total={total}
           answered={answered}
           flipped={flipped}
@@ -207,7 +216,7 @@ function ReviewSession({
   );
 }
 
-function CompleteState({ lastNodeId }: { lastNodeId: string | null }) {
+function CompleteState({ lastNodeId, total }: { lastNodeId: string | null; total: number }) {
   return (
     <Card className="flex min-h-[320px] flex-col items-center justify-center gap-3 px-6 py-12 text-center">
       <div className="text-3xl text-ink-3" aria-hidden="true">
@@ -215,7 +224,7 @@ function CompleteState({ lastNodeId }: { lastNodeId: string | null }) {
       </div>
       <p className="text-base font-medium text-ink">今日复习完成</p>
       <p className="max-w-sm text-sm text-ink-2">
-        本次共完成 {REVIEW_DUE_CARDS.length} 张卡片的自评。结果已计入技能证据，不会作为能力评级。
+        本次共完成 {total} 张卡片的自评。结果已计入技能证据，不会作为能力评级。
       </p>
       <div className="mt-2 flex flex-wrap justify-center gap-2">
         {lastNodeId ? (

@@ -8,9 +8,11 @@ import { AiNote, DemoTag, EmptyState, LoadingState } from "@/components/states";
 import { FeatureGate } from "@/components/guards";
 import { useAppStore } from "@/lib/store";
 import { isApiMode } from "@/lib/data-source";
-import { SEARCH_RESULTS } from "@/lib/demo";
+import { SEARCH_RESULTS, topicSearchResults } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
 import { SearchApiView } from "./api-view";
 import type { SearchResult } from "@/lib/types";
+import type { DemoTopicBundle } from "@/lib/demo";
 
 const TYPE_LABEL: Record<string, { text: string; tone: "info" | "neutral" | "success" | "warning" }> = {
   node: { text: "节点", tone: "info" },
@@ -24,16 +26,16 @@ const NOTE_TARGET = "/notes?focus=note-01";
 const CREW_WORK_TARGET = "/reviews/review-need-01";
 const RESOURCE_URL = "https://www.nngroup.com/articles/asking-users-questions/";
 
-function resultHref(r: SearchResult): string {
+function resultHref(r: SearchResult, topic: DemoTopicBundle | null): string {
   switch (r.type) {
     case "node":
-      return NODE_TARGET;
+      return topic ? `/path/nodes/${r.id}` : NODE_TARGET;
     case "note":
-      return NOTE_TARGET;
+      return topic ? "/portfolio" : NOTE_TARGET;
     case "crew_work":
       return CREW_WORK_TARGET;
     case "resource":
-      return RESOURCE_URL;
+      return r.url ?? RESOURCE_URL;
   }
 }
 
@@ -64,6 +66,7 @@ export default function SearchPage() {
 }
 
 function SearchBody() {
+  const { data: topic, ready } = useDemoTopic();
   const [initialLoading, setInitialLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
@@ -80,11 +83,12 @@ function SearchBody() {
     window.setTimeout(() => setSearching(false), 500);
   }
 
-  const results = SEARCH_RESULTS.filter(
+  const baseResults = topic ? topicSearchResults(topic) : SEARCH_RESULTS;
+  const results = baseResults.filter(
     (r) => !submitted || r.title.includes(submitted) || r.snippet.includes(submitted),
   );
 
-  if (initialLoading) {
+  if (!ready || initialLoading) {
     return (
       <div className="space-y-3" aria-busy="true" aria-label="加载搜索结果中">
         <Skeleton className="h-11 w-full" />
@@ -110,7 +114,9 @@ function SearchBody() {
           id="search-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="例如：如何区分用户痛点与解决方案假设"
+          placeholder={
+            topic ? `搜索「${topic.goal.topic}」相关的节点、资料与笔记` : "例如：如何区分用户痛点与解决方案假设"
+          }
           className="sm:max-w-md"
         />
         <div className="flex shrink-0 gap-2">
@@ -148,7 +154,7 @@ function SearchBody() {
         <ul className="space-y-3">
           {results.map((r) => {
             const t = TYPE_LABEL[r.type] ?? TYPE_LABEL.node;
-            const href = resultHref(r);
+            const href = resultHref(r, topic);
             const inner = (
               <>
                 <div className="flex flex-wrap items-center gap-2">

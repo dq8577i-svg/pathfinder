@@ -17,6 +17,7 @@ export * from "./data";
 export * from "./users";
 export * from "./p1-data";
 export * from "./p2-data";
+export * from "./topic";
 
 /* ---------------- 角色选择器 ---------------- */
 

@@ -6,6 +6,8 @@ import { Badge, ButtonLink, Card, ProgressBar } from "@/components/ui";
 import { DemoTag } from "@/components/states";
 import { isApiMode } from "@/lib/data-source";
 import { SKILL_DIMENSIONS } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
+import { LoadingState } from "@/components/states";
 import { SkillsApiView } from "./api-view";
 import type { BadgeTone } from "@/components/ui";
 import type { SkillDimension, SkillLevel } from "@/lib/types";
@@ -30,12 +32,14 @@ const CONF_LABEL: Record<SkillDimension["confidence"], string> = {
   low: "置信度低",
 };
 
-const totalEvidence = SKILL_DIMENSIONS.reduce((sum, d) => sum + d.evidenceCount, 0);
-const maxEvidence = Math.max(1, ...SKILL_DIMENSIONS.map((d) => d.evidenceCount));
-const priority = SKILL_DIMENSIONS.find((d) => d.recommendation?.gapType === "优先补强") ?? null;
-
 export default function SkillsPage() {
   if (isApiMode) return <SkillsApiView />;
+  const { data: topic, ready } = useDemoTopic();
+  if (!ready) return <LoadingState label="正在加载技能雷达…" />;
+  const dims = topic ? topic.skills : SKILL_DIMENSIONS;
+  const totalEvidence = dims.reduce((sum, d) => sum + d.evidenceCount, 0);
+  const maxEvidence = Math.max(1, ...dims.map((d) => d.evidenceCount));
+  const priority = dims.find((d) => d.recommendation?.gapType === "优先补强") ?? null;
   return (
     <FeatureGate flag="skill_radar">
       <PageHeader
@@ -68,7 +72,7 @@ export default function SkillsPage() {
       ) : null}
 
       <div className="space-y-4">
-        {SKILL_DIMENSIONS.map((d) => (
+        {dims.map((d) => (
           <DimensionCard key={d.id} dim={d} maxEvidence={maxEvidence} />
         ))}
       </div>

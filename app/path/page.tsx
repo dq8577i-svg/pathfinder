@@ -9,6 +9,7 @@ import { Card, Badge, ButtonLink, ProgressBar, SectionHeading } from "@/componen
 import type { BadgeTone } from "@/components/ui";
 import { EmptyState, LoadingState, DemoTag, AiNote } from "@/components/states";
 import { pathFor, PATH_PM } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
 import { formatMinutes, cn } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { listPaths, getPath } from "@/lib/api/paths";
@@ -82,6 +83,7 @@ function PathContent() {
   const router = useRouter();
   const role = useAppStore((s) => s.role);
   const pushToast = useAppStore((s) => s.pushToast);
+  const { data: topic, ready } = useDemoTopic();
 
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [localCompleted, setLocalCompleted] = useState<string[]>([]);
@@ -116,6 +118,10 @@ function PathContent() {
   const rawNodes = useMemo(() => {
     if (needsDiagnosis) return [];
     if (baseNodes) return baseNodes;
+    // 主题数据包优先：新学习者完成诊断后的节点来自当前主题，绝不回退 PATH_PM
+    if (!isApiMode && isNewLearner && onboarded && topic) {
+      return topic.path.nodes;
+    }
     if (!isApiMode && isNewLearner && onboarded) {
       return PATH_PM.nodes.map((n) =>
         n.prerequisiteIds.length === 0
@@ -124,9 +130,9 @@ function PathContent() {
       );
     }
     return [];
-  }, [needsDiagnosis, baseNodes, isNewLearner, onboarded, isApiMode]);
+  }, [needsDiagnosis, baseNodes, isNewLearner, onboarded, topic, isApiMode]);
 
-  if (isApiMode ? apiLoading : !checked) return <LoadingState label="正在加载路径…" />;
+  if (isApiMode ? apiLoading : !checked || !ready) return <LoadingState label="正在加载路径…" />;
 
   if (needsDiagnosis) {
     return (
@@ -160,7 +166,7 @@ function PathContent() {
     );
   }
 
-  const path = basePath ?? PATH_PM;
+  const path = basePath ?? topic?.path ?? PATH_PM;
 
   // api 模式：节点状态直接来自数据库（planner 确定性计算）；demo 模式叠加本地完成记录
   const nodes = rawNodes.map((n) => ({

@@ -6,9 +6,10 @@ import { FeatureGate } from "@/components/guards";
 import { PageHeader } from "@/components/shell";
 import { Badge, Button, ButtonLink, Card, Field, Input, Select, Tabs, Textarea } from "@/components/ui";
 import { Modal } from "@/components/overlay";
-import { DemoTag } from "@/components/states";
+import { DemoTag, LoadingState } from "@/components/states";
 import { isApiMode } from "@/lib/data-source";
 import { LIBRARY_ITEMS } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
 import type { BadgeTone } from "@/components/ui";
 import type { LibraryItem } from "@/lib/types";
 import { mockFetch, relativeTime, throwByState } from "@/lib/utils";
@@ -48,13 +49,22 @@ export default function LibraryPage() {
   if (isApiMode) return <LibraryApiView />;
   const demoState = useAppStore((s) => s.demoState);
   const pushToast = useAppStore((s) => s.pushToast);
+  const { data: topic, ready, updateBundle } = useDemoTopic();
 
-  const [items, setItems] = useState<LibraryItem[]>(LIBRARY_ITEMS);
+  // 主题数据包存在时以 topic.library 为准（仅含主题字符串，物理上不可能出现 PM 资料）；
+  // 无 bundle（演示角色 / 未诊断）才回退本地静态 PM 演示秀。
+  const [localItems, setLocalItems] = useState<LibraryItem[]>(LIBRARY_ITEMS);
   const [tab, setTab] = useState<TabValue>("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<NewItemForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  if (!ready) return <LoadingState label="正在加载个人资料库…" />;
+
+  const items = topic ? topic.library : localItems;
+  const nodeTitle = (id: string): string =>
+    topic ? topic.path.nodes.find((n) => n.id === id)?.title ?? id : NODE_TITLES[id] ?? id;
 
   const counts = {
     all: items.length,
@@ -103,7 +113,11 @@ export default function LibraryPage() {
         memo: form.memo.trim(),
         licenseNote: "由用户添加（演示）；请确保你拥有保存与分享的权利。",
       };
-      setItems((prev) => [newItem, ...prev]);
+      if (topic) {
+        updateBundle({ ...topic, library: [newItem, ...topic.library] });
+      } else {
+        setLocalItems((prev) => [newItem, ...prev]);
+      }
       setModalOpen(false);
       setForm(EMPTY_FORM);
       pushToast("已保存到个人资料库", "success");
@@ -137,12 +151,16 @@ export default function LibraryPage() {
 
       <div className="space-y-3">
         {visible.map((item) => (
-          <LibraryRow key={item.id} item={item} />
+          <LibraryRow key={item.id} item={item} nodeTitle={nodeTitle} />
         ))}
         {visible.length === 0 ? (
           <Card className="p-8 text-center">
-            <p className="text-base font-medium text-ink">这个分类还没有资料</p>
-            <p className="mt-1 text-sm text-ink-2">先保存一个公开链接或已授权文件，或切换其他分类。</p>
+            <p className="text-base font-medium text-ink">{topic ? "还没有学习资料" : "这个分类还没有资料"}</p>
+            <p className="mt-1 text-sm text-ink-2">
+              {topic
+                ? "从当前学习路径收藏资料，会显示在这里。点击「新增资料」手动添加链接、文件与摘记。"
+                : "先保存一个公开链接或已授权文件，或切换其他分类。"}
+            </p>
           </Card>
         ) : null}
       </div>
@@ -199,7 +217,13 @@ export default function LibraryPage() {
   );
 }
 
-function LibraryRow({ item }: { item: LibraryItem }) {
+function LibraryRow({
+  item,
+  nodeTitle,
+}: {
+  item: LibraryItem;
+  nodeTitle: (id: string) => string;
+}) {
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -223,7 +247,7 @@ function LibraryRow({ item }: { item: LibraryItem }) {
         ))}
         {item.linkedNodeIds.map((id) => (
           <Badge key={id} tone="info">
-            关联：{NODE_TITLES[id] ?? id}
+            关联：{nodeTitle(id)}
           </Badge>
         ))}
       </div>

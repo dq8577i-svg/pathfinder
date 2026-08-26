@@ -9,6 +9,8 @@ import { FeatureGate } from "@/components/guards";
 import { useAppStore } from "@/lib/store";
 import { isApiMode } from "@/lib/data-source";
 import { PORTFOLIO_ITEMS } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
+import { LoadingState } from "@/components/states";
 import { PortfolioApiView } from "./api-view";
 import { mockFetch, formatDate, relativeTime } from "@/lib/utils";
 import type { PortfolioItem } from "@/lib/types";
@@ -29,7 +31,10 @@ const VISIBILITY_LABEL: Record<string, { text: string; tone: "neutral" | "info" 
 
 export default function PortfolioPage() {
   if (isApiMode) return <PortfolioApiView />;
+  const { data: topic, ready } = useDemoTopic();
   const demoState = useAppStore((s) => s.demoState);
+  if (!ready) return <LoadingState label="正在加载我的学习资产…" />;
+  const items = topic ? topic.portfolio : PORTFOLIO_ITEMS;
 
   return (
     <FeatureGate
@@ -45,7 +50,7 @@ export default function PortfolioPage() {
       <StateBanner state={demoState} />
 
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {PORTFOLIO_ITEMS.map((item) => (
+        {items.map((item) => (
           <li key={item.id} className="h-full">
             <PortfolioCard item={item} />
           </li>

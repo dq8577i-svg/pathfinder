@@ -529,6 +529,8 @@ export interface SearchResult {
   source: string;
   accessReason: string;
   tier?: Grade;
+  /** resource 命中可携带真实外部链接（demo 主题包派生） */
+  url?: string;
 }
 
 export interface Tenant {

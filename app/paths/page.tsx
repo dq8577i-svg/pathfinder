@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { PageHeader, StateBanner } from "@/components/shell";
 import { Badge, Button, ButtonLink, Card, Field, Input, ProgressBar, Select, Textarea } from "@/components/ui";
 import { Modal } from "@/components/overlay";
-import { DemoTag } from "@/components/states";
+import { DemoTag, LoadingState } from "@/components/states";
 import { FeatureGate } from "@/components/guards";
 import { useAppStore } from "@/lib/store";
 import { PATH_PAUSED, PATH_PM } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
 import { mockFetch, formatDate } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { listPaths } from "@/lib/api/paths";
@@ -47,6 +48,7 @@ const STATUS_LABEL: Record<string, { text: string; tone: "info" | "warning" | "n
 export default function PathsPage() {
   const demoState = useAppStore((s) => s.demoState);
   const pushToast = useAppStore((s) => s.pushToast);
+  const { data: topic, ready } = useDemoTopic();
   const [paths, setPaths] = useState<LearningPath[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -69,9 +71,12 @@ export default function PathsPage() {
         cancelled = true;
       };
     }
-    setPaths([PATH_PM, PATH_PAUSED]);
+    if (!ready) return;
+    setPaths(topic ? [topic.path] : [PATH_PM, PATH_PAUSED]);
     setLoaded(true);
-  }, []);
+  }, [ready, topic]);
+
+  if (!isApiMode && !ready) return <LoadingState label="正在加载学习路径…" />;
 
   function handleSetActive(id: string, title: string) {
     try {
@@ -85,8 +90,9 @@ export default function PathsPage() {
 
   const primary = paths.find((p) => p.isPrimary) ?? paths[0] ?? null;
   const proposal =
-    (isApiMode ? primary?.adjustmentProposal : PATH_PM.adjustmentProposal) ?? buildAdjustmentProposal();
-  const showProposal = isApiMode ? !!primary?.adjustmentProposal : PATH_PM.status === "in_progress";
+    (isApiMode ? primary?.adjustmentProposal : !topic ? PATH_PM.adjustmentProposal : null) ??
+    buildAdjustmentProposal();
+  const showProposal = isApiMode ? !!primary?.adjustmentProposal : !topic && PATH_PM.status === "in_progress";
 
   return (
     <FeatureGate

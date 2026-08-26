@@ -9,7 +9,8 @@ import { Button, Card, Badge, ButtonLink, Divider, SectionHeading } from "@/comp
 import type { BadgeTone } from "@/components/ui";
 import { Modal, ConfirmDialog } from "@/components/overlay";
 import { ErrorState, EmptyState, LoadingState, OfflineState, DemoTag, AiNote } from "@/components/states";
-import { pathFor, PATH_PM } from "@/lib/demo";
+import { pathFor } from "@/lib/demo";
+import { useDemoTopic } from "@/lib/demo/use-topic";
 import { formatMinutes, formatDate, gradeLabel } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { listPaths, getPath } from "@/lib/api/paths";
@@ -114,6 +115,7 @@ function NodeDetail() {
   const role = useAppStore((s) => s.role);
   const demoState = useAppStore((s) => s.demoState);
   const pushToast = useAppStore((s) => s.pushToast);
+  const { data: topic, ready } = useDemoTopic();
 
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [localCompleted, setLocalCompleted] = useState<string[]>([]);
@@ -151,8 +153,8 @@ function NodeDetail() {
   );
 
   const basePath = isApiMode ? apiPath : pathFor(role);
-  const hasAccessPath = isApiMode ? !!basePath : !!basePath || (isNewLearner && onboarded === true);
-  const path = basePath ?? (isApiMode ? null : isNewLearner && onboarded === true ? PATH_PM : null);
+  const path = basePath ?? (isApiMode ? null : topic?.path ?? null);
+  const hasAccessPath = !!path;
 
   const rawNode = path?.nodes.find((n) => n.id === nodeId) ?? null;
   const baseNode =
@@ -163,7 +165,7 @@ function NodeDetail() {
         }
       : rawNode;
 
-  if (isApiMode ? apiLoading : !checked) return <LoadingState label="正在加载节点…" />;
+  if (isApiMode ? apiLoading : !checked || !ready) return <LoadingState label="正在加载节点…" />;
 
   if (!hasAccessPath) {
     return (
@@ -374,7 +376,7 @@ function NodeDetail() {
                 用户说「{baseNode.scenario}」——
                 {isApiMode
                   ? `先理清目标与边界，再达成能力目标：${baseNode.capabilityGoal}。`
-                  : "试着像产品经理一样先澄清任务，再写需求假设。"}
+                  : "先澄清任务目标与边界，再说明你的做法与依据。"}
               </p>
             </Card>
           ) : null}
