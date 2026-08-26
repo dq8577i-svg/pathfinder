@@ -30,5 +30,3 @@ e2e-tmp/run-out.txt
 
 # 构建/杂散产物
 tsc-out.txt
-# 测试误创建的杂散文件（全角冒号文件名）
-D：*
