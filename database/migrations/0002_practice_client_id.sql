@@ -1,0 +1,2 @@
+ALTER TABLE "practice_messages" ADD COLUMN "client_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "practice_messages_session_client_idx" ON "practice_messages" USING btree ("session_id","client_id") WHERE "practice_messages"."client_id" IS NOT NULL;

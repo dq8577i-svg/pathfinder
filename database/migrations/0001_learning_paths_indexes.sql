@@ -1,0 +1,2 @@
+CREATE INDEX "learning_paths_user_idx" ON "learning_paths" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "learning_paths_one_primary_user_idx" ON "learning_paths" USING btree ("user_id") WHERE "learning_paths"."is_primary" = true;
