@@ -30,3 +30,6 @@ e2e-tmp/run-out.txt
 
 # 构建/杂散产物
 tsc-out.txt
+
+.vercel
+.env*
