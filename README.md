@@ -1,23 +1,73 @@
-# 知径 Pathfinder · AI 学习路径工作台（Web 演示）
+# 知径 Pathfinder · AI 学习路径工作台
 
-基于系统 PRD v1.4 的全量交互原型（P0–P2）。产品机制：**可信教材能力骨架 + AI 编排（演示模拟）+ 可解释公开资料证据 + AI 费曼追问 + 可恢复学习资产** —— 不是内容流、不是题库、不是课程平台、不是聊天机器人。核心学习闭环：**路径 → 证据 → 练习 → 反馈 → 下一步**。
+**让每一次学习都有路径、证据与反馈。**
 
-- 纯前端实现：Mock 数据 + 服务端可选 AI 引擎，不依赖真实数据库 / 对象存储 / 搜索 API。
-- 所有 AI 生成内容标注「AI 整理（演示）」；所有业务数据标注「演示数据」。
-- 前端零密钥：Token 只存在于本机 `.env.local`（已被 gitignore 排除），绝不进入代码、页面、README 或日志。
+知径（Pathfinder）是一个 AI 驱动的个性化学习工作台：输入一个想学的主题，系统编排出「基础入门 → 核心方法 → 综合实战」的进阶路径，每个环节挂载**可核验的公开资料证据**，再用 **AI 费曼追问**帮你把知识真正内化。
+
+产品机制：**可信教材能力骨架 + AI 编排 + 可解释公开资料证据 + AI 费曼追问 + 可恢复学习资产** —— 不是内容流、不是题库、不是课程平台、不是聊天机器人。
+
+核心学习闭环：**路径 → 证据 → 练习 → 反馈 → 下一步**。
+
+- 🔗 **在线体验**（公网 demo）：https://site-seven-weld-91.vercel.app —— 免注册一键进入，输入任意主题（如「高中生物」「Python 数据分析」「摄影」），全部模块即刻跟随该主题生成内容
+- 🧩 **开源代码**：https://github.com/dq8577i-svg/pathfinder
+
+## 核心亮点
+
+| 亮点 | 说明 |
+|---|---|
+| 主题驱动的路径编排 | 输入主题 → 生成三阶技能路径（基础 / 方法 / 实战），路径、技能雷达、复习卡、情境练习、资料库、作品集、检索**全站与主题严格一致**，主题之间内容互不串台 |
+| 可解释的证据链 | 每个学习节点挂载 A/B/C 分级的公开资料证据，来源可点开核验（api 模式经 Tavily 实时联网检索） |
+| 费曼学习闭环 | 基于节点生成练习对话：AI 追问 → 自评 → 间隔复习卡（SM-2 风格），自评计入技能证据 |
+| 个人资产可恢复 | 资料库（资源收藏 / 链接 / 文件 / 笔记）、作品集、复习进度随学习者持久化 |
+| 演示零密钥 | demo 模式无需任何密钥即可运行，全部内容诚实标注「演示数据」，不冒充真实结果 |
+
+## 在线体验步骤
+
+1. 打开 https://site-seven-weld-91.vercel.app ，登录页一键选择演示角色
+2. 推荐「新学习者 · 林然」→ 进入目标诊断，输入一个学习主题（如「高中生物」）并确认
+3. 观察首页 / 路径 / 技能雷达 / 复习 / 情境练习 / **个人资料库** / 作品集 / 检索**全部跟随该主题生成**
+4. 在资料库新增一条链接，刷新页面仍在（演示数据持久化于浏览器）
+
+## 截图
+
+> 占位：可用 `npm run dev` 启动后浏览器截图，替换下表条目。
+
+| 页面 | 截图 |
+|---|---|
+| 首页（主题化学习进度） | 待补充 |
+| 知识树 / 节点证据抽屉 | 待补充 |
+| 费曼练习对话 | 待补充 |
+| 个人资料库 | 待补充 |
 
 ## 技术栈
 
-- Next.js 16.2.10（App Router）+ React 19 + TypeScript strict
-- Tailwind CSS v4（CSS-first `@theme` 设计系统，中性极简「编辑式学习工作台」风格）
-- 零状态库依赖：`useSyncExternalStore` 手写 AppStore
+- **框架**：Next.js 16.2.10（App Router）+ React 19 + TypeScript strict
+- **样式**：Tailwind CSS v4（CSS-first `@theme` 设计系统），响应式（桌面 1200px 内容区 / 390px 移动端抽屉侧栏）
+- **状态**：`useSyncExternalStore` 手写 AppStore，零状态库依赖
+- **后端（api 模式）**：PostgreSQL 16 + Drizzle ORM、Redis、MinIO（对象存储）、HttpOnly Cookie 会话认证（JWT + bcrypt）
+- **AI**：DeepSeek（Anthropic 兼容端点）结构化输出 + Mock 降级；证据检索经 Tavily 实时联网
+- **测试**：tsx + Playwright 驱动的 E2E 套件（见「测试与验收」）
 
-## 快速启动
+## 双模式架构
+
+`NEXT_PUBLIC_DATA_SOURCE` 控制数据源，两种模式共享同一套页面组件与 Provider 抽象：
+
+| | demo 模式（默认） | api 模式 |
+|---|---|---|
+| 数据 | 客户端确定性生成的主题数据包（`lib/demo/topic.ts`） | PostgreSQL + Drizzle（11+ 表，Drizzle schema） |
+| AI | Mock Provider（确定性回复，零外发请求） | DeepSeek 真实调用（仅服务端 Route Handler） |
+| 证据 | 派生资源卡片 | Tavily 实时检索 + A/B/C 分级 |
+| 隔离 | 按主题隔离（跨主题 Jaccard < 0.2） | `user_id` + `path_id` 双键隔离，跨用户 404 |
+| 门槛 | 零密钥、零数据库，开箱即用 | 需有效密钥 + 托管 Postgres |
+
+设计要点：api 模式的选择器签名与 demo 模式完全一致，`lib/ai/*` Provider 抽象与 `lib/path/service.ts` 派生逻辑为两模式共用，保证前端组件零分叉。
+
+## 本地运行
 
 ```bash
 cd pathfinder/site
 npm install        # 首次
-npm run dev        # 开发：http://localhost:3000
+npm run dev        # 开发：http://localhost:3000（默认 demo 模式，零配置）
 ```
 
 构建与预览：
@@ -26,11 +76,23 @@ npm run dev        # 开发：http://localhost:3000
 npm run build && npm start
 ```
 
-> 无需任何密钥即可运行：默认使用 Mock AI 引擎（`lib/ai/mock.ts`），无外发请求。
+演示角色（登录页或 URL `?role=` 切换，会持久化到 localStorage）：
 
-## AI 引擎接入（可选）
+| 角色 | 说明 |
+|---|---|
+| 新学习者 · 林然 | 无路径，注册 / 诊断 / 主题路径确认（主题一致性核心演示路径） |
+| 在学学习者 · 陈思 | 已有学习进度与当前节点 |
+| 练习中学习者 · 周宁 | 未完成费曼会话 + 本地草稿 |
+| 内容管理员 · 陈岚 | 资源审核队列（角色数据隔离） |
+| 机构管理员 · 张磊 | 仅本机构脱敏聚合数据 |
 
-演示默认走 Mock。如需接入真实 DeepSeek（Anthropic 兼容端点），复制 `.env.example` 为 `.env.local` 并设置：
+## 接入真实 AI（可选）
+
+demo 模式默认走 Mock。接入 DeepSeek（Anthropic 兼容端点）：
+
+```bash
+cp .env.example .env.local
+```
 
 ```
 DEEPSEEK_ENABLED=true
@@ -39,110 +101,33 @@ DEEPSEEK_API_KEY=<你的令牌>
 DEEPSEEK_MODEL=deepseek-chat
 ```
 
-规则：
+安全规则：**真实密钥只写入 `.env.local`（已 gitignore，绝不提交）**；密钥只在服务端 Route Handler 读取，客户端 bundle / 页面 / 日志中均不含密钥；若密钥曾泄露，请立即撤销并重签。
 
-- 令牌只在**服务端 Route Handler**（`app/api/ai/chat/route.ts`）读取，客户端 bundle、页面、README、日志中均不含密钥。
-- `.env.local` 已加入 `.gitignore`；仓库只提交 `.env.example`（占位）。
-- 若令牌曾在聊天、截图、日志或仓库中暴露，请立即在 DeepSeek 控制台**撤销并重签**。
-- 切换引擎不改变页面交互；AI 来源可在「演示控制台 → AI 引擎」查看。
+## 测试与验收
 
-## 路由清单
+以生产构建（`next build && next start`）为基础的 E2E 套件，断言全绿：
 
-### P0 主闭环
-| 路由 | 说明 |
-| --- | --- |
-| `/` | 产品落地页（访客） |
-| `/login` | 登录 / 以演示角色快速进入 |
-| `/register` | 注册 |
-| `/onboarding` | 4 步目标诊断 → AI 编排（模拟）→ 路径确认 |
-| `/home` | 学习首页（按角色作用域） |
-| `/path` | 知识树页（5 种节点状态） |
-| `/path/nodes/[nodeId]` | 知识节点详情 + A/B/C 证据抽屉 + 完成/撤销 |
-| `/practice/[sessionId]` | 费曼练习对话（专注模式） |
-| `/practice/[sessionId]/result` | 评价与笔记页 |
-| `/notes` | 我的费曼笔记 |
+| 套件 | 断言 | 覆盖 |
+|---|---|---|
+| `e2e-tmp/demo-topic-e2e.ts` | 51/51 | 三主题（高中生物 / Python 数据分析 / 摄影）全模块主题一致、**零 PM 词泄漏**、主题隔离 Jaccard < 0.2、跨主题 id 零重叠 |
+| `e2e-tmp/module-isolation-e2e.js` | 95/95 | api 模式用户/路径隔离、新用户空库硬不变量、收藏 201 幂等、跨用户 404、两主题 Jaccard < 0.2 |
+| `e2e-tmp/theme-e2e.js` | 123/123 | P1/P2 三主题全链路：真实 Tavily 检索、节点/资源/卡片/情境主题特异性 |
+| `e2e-tmp/api-mode.js` | 28/28 | api 模式浏览器全链路 |
+| `e2e-tmp/run.js` | 8 链路 / 112 断言 | demo 全功能验收：注册→诊断→路径→费曼→评价→复习→多路径→作品集→开关→租户/角色隔离 |
+| `npx tsc --noEmit` | 0 错误 | api 与 demo 双态构建均全绿 |
 
-### P1 强化学习
-`/review`（复习中心）、`/labs`（情境练习场列表）、`/labs/[scenarioId]`（情境详情）、`/skills`（技能雷达）、`/library`（个人资料库）、`/admin/content`（内容运营台，仅内容管理员）。
+套件全部保留于 `e2e-tmp/`，可复跑。验收过程中修复的真实问题（生产水合错误、死链、demo 数据跨主题泄漏）均记录于 git 历史。
 
-### P2 空间与协作
-`/space`（学习空间）、`/paths`（多路径列表）、`/paths/[pathId]`（路径详情与计划调整）、`/crews`（小队）、`/crews/[crewId]`（小队详情与挑战）、`/reviews/[reviewId]`（同伴反馈）、`/portfolio`（作品集）、`/search`（语义检索）、`/org/[tenantSlug]`（机构学习主页）、`/org/[tenantSlug]/admin`（机构管理，仅机构管理员）。
+## 页面地图（P0–P2，30+ 路由）
 
-> 功能开关关闭时：导航隐藏对应入口；直接访问路由显示「功能暂未开放」+ 返回 CTA，**绝不返回 404**。角色不符：显示 403 说明原因，不泄露数据。
+- **P0 主闭环**：`/` 落地页 · `/login` `/register` · `/onboarding` 目标诊断 · `/home` 学习首页 · `/path` 知识树 · `/path/nodes/[nodeId]` 节点详情 + 证据抽屉 · `/practice/[sessionId]` 费曼练习 · `/notes` 费曼笔记
+- **P1 强化学习**：`/review` 复习中心 · `/labs` 情境练习 · `/skills` 技能雷达 · `/library` 个人资料库 · `/admin/content` 内容运营台
+- **P2 空间与协作**：`/space` 学习空间 · `/paths` 多路径 · `/crews` 小队 · `/reviews/[reviewId]` 同伴反馈 · `/portfolio` 作品集 · `/search` 语义检索 · `/org/[tenantSlug]` 机构空间
 
-## 演示角色
+功能开关关闭时隐藏对应导航、直访显示「功能暂未开放」**绝不返回 404**；角色不符显示 403 并说明原因，不泄露数据。
 
-| 角色 | query | 说明 |
-| --- | --- | --- |
-| 访客 | `?role=guest` | 仅落地页 / 登录 / 注册 |
-| 新学习者·林然 | `?role=new_learner` | 无路径，6 周 / 每周 5 小时；注册、诊断、路径确认 |
-| 在学学习者·陈思 | `?role=learner` | 4/19 已完成，当前节点「从表象需求到真实需求」 |
-| 练习中学习者·周宁 | `?role=practice_learner` | 3 轮未完成费曼会话 + 本地草稿（离线/同步链路） |
-| 内容管理员·陈岚 | `?role=content_admin` | 资源审核队列；不可查看私人笔记正文/完整费曼对话 |
-| 机构管理员·张磊 | `?role=org_admin` | 仅本机构脱敏聚合数据 |
+## 已知限制（诚实声明）
 
-角色可通过 URL `?role=`、`/login`、或隐藏原型控制台切换（会持久化到 localStorage）。
-
-## 功能开关（Feature Flags）
-
-13 个开关：`review_center`、`scenario_labs`、`multi_path`、`crews`、`semantic_search`、`tenant_workspace`、`skill_radar`、`personal_library`、`content_console`、`learning_space`、`adaptive_plan`、`portfolio`、`peer_feedback`。默认全部开启。
-
-- 关闭单个：`?flag=crews`（关闭 crews，其余保留默认）
-- 控制台：演示控制台 → 功能开关逐项切换
-
-## 演示状态（Demo States）
-
-URL `?state=` 或演示控制台切换：
-
-`offline`（离线，写入不伪造已保存）、`ai_error`（AI 暂不可用，前端短路模拟失败）、`evidence_insufficient`（证据不足）、`empty`（空状态）、`forbidden`（无权限）、`normal`（默认）。
-
-## Mock 数据位置
-
-| 文件 | 内容 |
-| --- | --- |
-| `lib/types.ts` | 全量领域类型契约（兼容未来 PostgreSQL/Redis/MinIO/DeepSeek/pgvector 架构） |
-| `lib/demo/data.ts` | 教材资源证据（A/B/C 分级）、19 节点课程、路径、练习会话、费曼笔记 |
-| `lib/demo/users.ts` | 5 个演示角色与资料 |
-| `lib/demo/p1-data.ts` | 记忆卡片、情境练习场、技能雷达、资料库、内容运营台 |
-| `lib/demo/p2-data.ts` | 学习空间、小队/挑战/反馈、作品集、语义检索、机构空间 |
-| `lib/demo/index.ts` | 数据聚合出口与角色作用域选择器 |
-
-## 架构要点
-
-- `lib/ai/*`：AI Provider 抽象（Mock / DeepSeek），服务端 Route Handler 鉴权，客户端 `useAiChat()` 只与 `/api/ai/chat` 通信。
-- `lib/store.tsx`：AppStore（角色/鉴权/开关/演示态/Toast/持久化）。
-- `components/guards.tsx`：RequireAuth（401→登录+returnTo）、FeatureGate、RoleGate。
-- `components/ui.tsx` 等：设计系统原语（44px 点击目标、键盘焦点、状态必带文字）。
-- 响应式：桌面 Topbar 56px + Sidebar 240px + 内容最大 1200px；390px 移动端侧栏转抽屉、单列布局。
-
-## 已知限制
-
-- 纯前端演示：练习会话、草稿、设置仅存于浏览器 localStorage，刷新不丢失，但不做真实多端同步。
-- 「AI 编排」「语义检索」为演示模拟；真实接入需在服务端注入 DeepSeek 与 Search Provider。
+- **demo 模式**为前端演示：练习会话、草稿、设置存于浏览器 localStorage，刷新不丢失但不做多端同步；AI 编排与语义检索为确定性模拟。
+- **线上站点**部署的是 demo 模式（免注册即看）；真实 api 模式需要有效密钥 + 托管数据库，未部署公网。
 - 机构聚合数据为脱敏演示数据，不反映真实学习者。
-
-## E2E 验收结果
-
-8/8 条验收链路全部通过（断言全绿），基于 `next start` 生产构建 + Mock AI 引擎（确定性回复、零外发请求）。
-
-| # | 链路 | 断言 |
-| --- | --- | --- |
-| 1 | 注册 → 诊断 → 路径证据 → 确认 → 首页 | 19/19 |
-| 2 | 首页 → 节点 → 费曼 → 评价 → 下一步 | 31/31 |
-| 3 | 周宁 离线 → 恢复 → 同步 | 10/10 |
-| 4 | 复习 → 情境练习 → 技能 | 17/17 |
-| 5 | 多路径 → 计划调整 → 作品集分享 | 12/12 |
-| 6 | 功能开关 `flag=crews` 关闭 | 5/5 |
-| 7 | 租户 / 角色隔离 | 13/13 |
-| 8 | 视口与健康检查（26 路由） | 5/5 |
-
-全局扫描：**无死链、无 4xx/5xx、无控制台错误、无页面 JS 错误、无 `sk-` 令牌**。26 个路由在 1440px / 390px 双视口下均无横向溢出、无空白页、无被遮挡的点击目标。
-
-验收中修复的问题（均已重建生效）：
-
-- `components/shell.tsx`：「机构空间」导航指向无路由的 `/org`，改为 `/org/${TENANT.slug}`，消除死链。
-- `app/practice/[sessionId]/result/page.tsx`：修复生产水合错误 React #418（demo 数据 `daysAgo(0)` 在 SSR 与客户端渲染分钟级漂移导致文本不匹配）——改用 mounted 门控，首帧渲染「——」，挂载后再渲染真实时间。
-- `app/icon.svg`：新增站点图标，浏览器经 `<link rel="icon">` 使用 `/icon.svg`，不再回退请求 `/favicon.ico`。
-- 数据建模说明（非缺陷）：进行中会话 `session-active-chen` 的结果页正确显示「练习尚未完成」；完整评价页由已完成会话 `session-done-01` 演示。
-
-E2E runner 保留于 `e2e-tmp/run.js` + `e2e-tmp/lib.js`，可复跑 8 条链路。已知浏览器级现象：`<Link>` 的 `?_rsc=` 预取请求被后续导航打断时产生 `net::ERR_ABORTED`，属预取取消，非 HTTP 失败，不计入 4xx/5xx。
