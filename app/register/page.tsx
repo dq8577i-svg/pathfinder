@@ -9,6 +9,8 @@ import { DemoTag, OfflineState } from "@/components/states";
 import { mockFetch } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { register as apiRegister } from "@/lib/api/auth";
+import { ThemeToggle } from "@/components/theme";
+import { ArrowLeft, Path, Sparkle } from "@phosphor-icons/react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -83,29 +85,30 @@ function RegisterInner() {
   const strength = strengthOf(password);
 
   return (
-    <div className="min-h-screen bg-canvas md:grid md:grid-cols-[minmax(280px,1fr)_minmax(0,1.4fr)]">
-      <aside className="hidden flex-col justify-between bg-ink p-8 text-white md:flex">
+    <div className="pf-app-canvas relative min-h-screen bg-canvas md:grid md:grid-cols-[minmax(300px,.75fr)_minmax(0,1.4fr)]">
+      <aside className="hidden flex-col justify-between border-r border-line bg-[var(--pf-sidebar)] p-8 text-ink backdrop-blur-xl md:flex">
         <div>
-          <p className="text-lg font-semibold tracking-tight">知径 Pathfinder</p>
-          <p className="mt-1 text-sm text-white/70">先规划，再学习，再验证</p>
+          <p className="flex items-center gap-2 text-lg font-semibold tracking-tight"><span className="flex size-8 items-center justify-center rounded-md border border-line bg-subtle text-action"><Path size={18} weight="bold" /></span>知径 Pathfinder</p>
+          <p className="mt-2 text-sm text-ink-2">先规划，再学习，再验证</p>
         </div>
-        <ul className="space-y-3 text-sm text-white/80">
+        <ul className="space-y-3 text-sm text-ink-2">
           <li className="flex gap-2">
-            <span aria-hidden="true">·</span>用最少字段开始规划
+            <Sparkle size={16} className="text-action" />用最少字段开始规划
           </li>
           <li className="flex gap-2">
-            <span aria-hidden="true">·</span>演示环境不会采集敏感信息
+            <Sparkle size={16} className="text-action" />演示环境不会采集敏感信息
           </li>
           <li className="flex gap-2">
-            <span aria-hidden="true">·</span>注册即进入目标诊断
+            <Sparkle size={16} className="text-action" />注册即进入目标诊断
           </li>
         </ul>
-        <Link href="/" className="inline-flex h-11 items-center text-sm text-white/70 hover:text-white">
-          ← 返回首页
+        <Link href="/" className="inline-flex h-11 items-center gap-2 text-sm text-ink-2 hover:text-ink">
+          <ArrowLeft size={16} /> 返回首页
         </Link>
       </aside>
 
       <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="absolute right-5 top-5"><ThemeToggle compact /></div>
         <div className="w-full max-w-md">
           <div className="mb-6 flex items-center gap-2 md:hidden">
             <Link href="/" className="text-sm font-semibold text-ink">

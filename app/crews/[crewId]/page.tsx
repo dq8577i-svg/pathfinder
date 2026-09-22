@@ -92,7 +92,6 @@ function NoChallenge() {
   return (
     <Card className="p-4">
       <EmptyState
-        icon="▢"
         title="当前暂无挑战"
         description="队长创建挑战后，这里会展示任务简报、量规与截止时间。"
         action={{ label: "返回小队列表", href: "/crews" }}

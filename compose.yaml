@@ -1,0 +1,114 @@
+name: pathfinder-demoz-v2
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pathfinder
+      POSTGRES_USER: pathfinder
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pathfinder_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pathfinder_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pathfinder -d pathfinder"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-pathfinder_redis_dev}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-pathfinder_redis_dev}
+    ports:
+      - "6379:6379"
+    volumes:
+      - pathfinder_redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD:-pathfinder_redis_dev} ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pathfinder_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pathfinder_minio_dev_password}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - pathfinder_minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pathfinder_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pathfinder_minio_dev_password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pathfinder-assets}
+    entrypoint: >-
+      /bin/sh -c "mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$MINIO_BUCKET &&
+      mc anonymous set none local/$$MINIO_BUCKET"
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_DATA_SOURCE: api
+      AUTH_GATE: "true"
+      COOKIE_SECURE: "false"
+      ALLOW_DEMO_LOGIN: "true"
+      DATABASE_URL: postgresql://pathfinder:${POSTGRES_PASSWORD:-pathfinder_dev_password}@postgres:5432/pathfinder
+      REDIS_URL: redis://:${REDIS_PASSWORD:-pathfinder_redis_dev}@redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-pathfinder_minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-pathfinder_minio_dev_password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pathfinder-assets}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-DemoPass123!}
+      DEEPSEEK_ENABLED: ${DEEPSEEK_ENABLED:-false}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/anthropic}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  pathfinder_postgres:
+  pathfinder_redis:
+  pathfinder_minio:

@@ -168,6 +168,12 @@ export interface PathRationale {
   goalProfile: string;
   providerLabel: string;
   searchProviderLabel: string;
+  /** 路径确认前的真实检索覆盖；可信度由来源覆盖规则计算，不采用模型自报置信度。 */
+  evidenceConfidence?: "high" | "medium" | "low";
+  searchedNodeCount?: number;
+  nodesWithResources?: number;
+  totalResourceCount?: number;
+  searchQueries?: string[];
   retainedChapters?: string[];
   deferredChapters?: string[];
   skippedOrReview?: string[];

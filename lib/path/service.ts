@@ -10,7 +10,7 @@
  * 知识库条目）。模型输出只给 skills/weeks，绝不直接决定节点 id（见 lib/plan/planner.ts）。
  * 生成节点以「第 N 周」为 chapter、确定性前置链（node i ← node i-1）保证锁定/解锁逻辑。
  */
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   curricula,
@@ -25,6 +25,7 @@ import {
 import { serializeNode, serializePath, serializePathSummary } from "@/lib/api/serialize";
 import { loadResourcesByNodeIds } from "@/lib/curriculum/service";
 import { generatePlan, type GeneratedPlan } from "@/lib/plan/planner";
+import { discoverPreviewEvidence } from "@/lib/resource/preview";
 import type { GeneratedSkill } from "@/lib/ai/types";
 import type { LearningGoalInput } from "@/lib/plan/goal";
 import type {
@@ -79,9 +80,86 @@ export async function getPathForUser(pathId: string, userId: string) {
   return serializePath(path, nodes, path.rationale as PathRationale, planVersions);
 }
 
+export interface UpdateLearningPathInput {
+  title?: string;
+  weeklyHours?: number;
+  deadline?: Date;
+  status?: "in_progress" | "paused" | "completed" | "archived";
+  setPrimary?: boolean;
+}
+
+/**
+ * 更新个人路径。主路径切换与归档在同一事务内完成，避免出现两个主路径。
+ * 归档主路径时会把最近使用的非归档路径提升为主路径；没有候选项则允许暂时无主路径。
+ */
+export async function updatePathForUser(
+  pathId: string,
+  userId: string,
+  input: UpdateLearningPathInput,
+): Promise<LearningPath | null> {
+  const changed = await db.transaction(async (tx) => {
+    const current = (
+      await tx
+        .select()
+        .from(learningPaths)
+        .where(and(eq(learningPaths.id, pathId), eq(learningPaths.userId, userId)))
+        .limit(1)
+    )[0];
+    if (!current) return false;
+
+    const now = new Date();
+    const patch: Partial<typeof learningPaths.$inferInsert> = {
+      updatedAt: now,
+      lastActivityAt: now,
+    };
+    if (input.title !== undefined) patch.title = input.title;
+    if (input.weeklyHours !== undefined) patch.weeklyHours = input.weeklyHours;
+    if (input.deadline !== undefined) patch.deadline = input.deadline;
+    if (input.status !== undefined) patch.status = input.status;
+
+    if (input.setPrimary) {
+      await tx
+        .update(learningPaths)
+        .set({ isPrimary: false, updatedAt: now })
+        .where(eq(learningPaths.userId, userId));
+      patch.isPrimary = true;
+      if (current.status === "archived" && input.status === undefined) patch.status = "in_progress";
+    }
+
+    if (input.status === "archived" && current.isPrimary && !input.setPrimary) {
+      patch.isPrimary = false;
+      const replacement = (
+        await tx
+          .select({ id: learningPaths.id })
+          .from(learningPaths)
+          .where(
+            and(
+              eq(learningPaths.userId, userId),
+              ne(learningPaths.id, pathId),
+              ne(learningPaths.status, "archived"),
+            ),
+          )
+          .orderBy(desc(learningPaths.lastActivityAt))
+          .limit(1)
+      )[0];
+      if (replacement) {
+        await tx
+          .update(learningPaths)
+          .set({ isPrimary: true, updatedAt: now })
+          .where(eq(learningPaths.id, replacement.id));
+      }
+    }
+
+    await tx.update(learningPaths).set(patch).where(eq(learningPaths.id, pathId));
+    return true;
+  });
+
+  return changed ? getPathForUser(pathId, userId) : null;
+}
+
 /** 预览（POST /api/v1/paths/preview）：无状态，不写库 */
 export async function computePreview(goal: LearningGoalInput): Promise<LearningPath> {
-  const existing = await db.select().from(knowledgeNodes);
+  const existing = await loadPlanningNodes();
   const now = new Date();
   const plan = await generatePlan(
     goal,
@@ -89,6 +167,11 @@ export async function computePreview(goal: LearningGoalInput): Promise<LearningP
   );
   const items = buildSkillItems(goal, plan, existing);
   const nodes = await serializePreviewNodes(items);
+  const evidence = await discoverPreviewEvidence(
+    { topic: goal.topic, goal: goal.goal, currentLevel: goal.currentLevel },
+    nodes,
+  );
+  const rationale = { ...genericRationale(goal, plan, now), ...evidence.rationalePatch };
 
   return serializePath(
     {
@@ -103,12 +186,13 @@ export async function computePreview(goal: LearningGoalInput): Promise<LearningP
       completedCount: 0,
       totalCount: nodes.length,
       currentNodeId: nodes[0]?.id ?? null,
-      rationale: genericRationale(goal, plan, now),
+      rationale,
       createdAt: now,
       lastActivityAt: now,
       isPrimary: false,
     },
-    nodes,
+    evidence.nodes,
+    rationale,
   );
 }
 
@@ -120,19 +204,23 @@ export type ConfirmPathResult =
 export async function confirmPath(
   userId: string,
   goal: LearningGoalInput,
+  acceptedPreview?: LearningPath | null,
 ): Promise<ConfirmPathResult> {
-  const existing = await db.select().from(knowledgeNodes);
+  const existing = await loadPlanningNodes();
   const now = new Date();
-  const plan = await generatePlan(
-    goal,
-    existing.map((n) => n.title),
-  );
+  const plan = planFromAcceptedPreview(goal, acceptedPreview) ??
+    await generatePlan(goal, existing.map((n) => n.title));
   const items = buildSkillItems(goal, plan, existing);
   const topicSlug = slugify(goal.topic);
   const curriculumId = `curriculum-gen-${topicSlug}`;
   const pathId = `path-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
   const deadline = addWeeks(now, goal.deadlineWeeks);
   const start = Date.now();
+  const existingPrimary = await db
+    .select({ id: learningPaths.id })
+    .from(learningPaths)
+    .where(and(eq(learningPaths.userId, userId), eq(learningPaths.isPrimary, true)))
+    .limit(1);
 
   const pathInput = {
     id: pathId,
@@ -150,19 +238,13 @@ export async function confirmPath(
     rationale: genericRationale(goal, plan, now),
     createdAt: now,
     lastActivityAt: now,
-    isPrimary: true,
+    // 第一条路径自动成为主路径；后续路径作为可切换的并行路径保留。
+    isPrimary: existingPrimary.length === 0,
     isDemo: false,
   };
 
   try {
-    const txResult = await db.transaction(async (tx) => {
-      const existingPrimary = await tx
-        .select({ id: learningPaths.id })
-        .from(learningPaths)
-        .where(and(eq(learningPaths.userId, userId), eq(learningPaths.isPrimary, true)))
-        .limit(1);
-      if (existingPrimary[0]) return { kind: "conflict", existingPathId: existingPrimary[0].id } as const;
-
+    await db.transaction(async (tx) => {
       // 生成 curriculum（draft；同主题跨用户复用，onConflictDoNothing 幂等）
       await tx
         .insert(curricula)
@@ -216,10 +298,7 @@ export async function confirmPath(
         .set({ goalSummary: plan.rationale, weeklyHours: goal.weeklyHours, onboardedAt: now })
         .where(eq(users.id, userId));
 
-      return { kind: "created" } as const;
     });
-
-    if (txResult.kind === "conflict") return txResult;
 
     const previewNodes = await serializePreviewNodes(items);
     return {
@@ -243,6 +322,18 @@ export async function confirmPath(
 }
 
 /* ---------------- 内部辅助 ---------------- */
+
+async function loadPlanningNodes(): Promise<NodeRow[]> {
+  const rows = await db.select().from(knowledgeNodes).orderBy(asc(knowledgeNodes.sequence));
+  // 已审核的产品经理模板排在 AI 生成节点之前，避免数据库已有其他主题后
+  // `existingNodeTitles.slice(0, 19)` 误取通用节点。
+  return rows.sort((a, b) => {
+    const aPriority = a.curriculumId === "curriculum-v1" ? 0 : 1;
+    const bPriority = b.curriculumId === "curriculum-v1" ? 0 : 1;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return a.sequence - b.sequence;
+  });
+}
 
 async function getPathNodes(pathId: string): Promise<KnowledgeNode[]> {
   const rows = await db
@@ -373,6 +464,36 @@ function genericRationale(goal: LearningGoalInput, plan: GeneratedPlan, now: Dat
     providerLabel: plan.providerLabel,
     searchProviderLabel: plan.searchProviderLabel,
     generatedAt: now.toISOString(),
+  };
+}
+
+/**
+ * 用户确认的预览来自当前用户 Redis 短期快照；校验目标参数完全一致后复用，
+ * 避免确认时二次调用模型造成节点、顺序和用户刚看到的方案不一致。
+ */
+function planFromAcceptedPreview(
+  goal: LearningGoalInput,
+  preview?: LearningPath | null,
+): GeneratedPlan | null {
+  const rationale = preview?.rationale;
+  if (!preview || rationale?.kind !== "generic") return null;
+  const sameGoal =
+    rationale.topic?.trim() === goal.topic.trim() &&
+    (rationale.goal ?? "").trim() === goal.goal.trim() &&
+    rationale.currentLevel?.trim() === goal.currentLevel.trim() &&
+    rationale.weeklyHours === goal.weeklyHours &&
+    rationale.deadlineWeeks === goal.deadlineWeeks;
+  if (!sameGoal || !rationale.title || !rationale.rationale || !rationale.skills?.length || !rationale.weeks?.length) {
+    return null;
+  }
+  return {
+    goalProfile: rationale.goalProfile,
+    title: rationale.title,
+    rationale: rationale.rationale,
+    skills: rationale.skills,
+    weeks: rationale.weeks,
+    providerLabel: rationale.providerLabel,
+    searchProviderLabel: rationale.searchProviderLabel,
   };
 }
 

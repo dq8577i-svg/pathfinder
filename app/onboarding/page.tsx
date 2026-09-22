@@ -6,12 +6,13 @@ import { useAppStore } from "@/lib/store";
 import { Button, Card, Badge, Divider, SectionHeading } from "@/components/ui";
 import { OfflineState, DemoTag, AiNote } from "@/components/states";
 import { RequireAuth } from "@/components/guards";
-import { pathFor, demoPlanOf, buildDemoTopicBundle } from "@/lib/demo";
+import { demoPlanOf, buildDemoTopicBundle } from "@/lib/demo";
 import { formatDate, cn } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { previewPath, confirmPath } from "@/lib/api/paths";
+import { refreshPathResources } from "@/lib/api/resources";
 import { learningGoalSchema, EXAMPLE_TOPICS, type LearningGoalInput } from "@/lib/plan/goal";
-import type { LearningPath, PathRationale } from "@/lib/types";
+import type { KnowledgeNode, LearningPath, PathRationale } from "@/lib/types";
 
 const HOUR_CHIPS = [2, 5, 8, 15];
 const WEEK_CHIPS = [4, 12, 26, 52];
@@ -19,9 +20,9 @@ const LEVEL_CHIPS = ["零基础", "有点基础", "自学过一些"];
 
 const GENERATE_STAGES = [
   "理解你的学习目标",
-  "检索现有知识库",
-  "编排技能与周计划",
-  "生成学习路径",
+  "检索公开资料与来源证据",
+  "按基础与时间编排技能",
+  "生成个性化学习路径",
 ];
 
 function hoursNote(h: number): string {
@@ -41,7 +42,6 @@ function Onboarding() {
   const router = useRouter();
   const demoState = useAppStore((s) => s.demoState);
   const pushToast = useAppStore((s) => s.pushToast);
-  const profile = useAppStore((s) => s.profile);
 
   const [step, setStep] = useState(1);
   const [topic, setTopic] = useState("");
@@ -55,28 +55,44 @@ function Onboarding() {
   const [phase, setPhase] = useState<"form" | "generating" | "result">("form");
   const [stageIdx, setStageIdx] = useState(0);
   const [confirming, setConfirming] = useState(false);
-  const [result, setResult] = useState<{ title: string; rationale: PathRationale } | null>(null);
+  const [confirmStage, setConfirmStage] = useState<"creating" | "resources" | null>(null);
+  const [result, setResult] = useState<{
+    id: string;
+    title: string;
+    rationale: PathRationale;
+    nodes: KnowledgeNode[];
+  } | null>(null);
+  const [weeksEnd, setWeeksEnd] = useState<Date | null>(null);
 
-  // 已有路径的学习者默认去首页（api 模式按真实 profile.hasPath 判断）
-  const role = useAppStore((s) => s.role);
   useEffect(() => {
-    if (isApiMode) {
-      if (profile.hasPath) router.replace("/home");
-      return;
+    try {
+      const pendingTopic = window.localStorage.getItem("pf-pending-topic");
+      if (pendingTopic) {
+        queueMicrotask(() => setTopic(pendingTopic));
+        window.localStorage.removeItem("pf-pending-topic");
+      }
+    } catch {
+      /* 首页未预填时保持空白 */
     }
-    if (pathFor(role)) router.replace("/home");
-  }, [role, router, profile.hasPath]);
+  }, []);
 
   useEffect(() => {
     if (phase !== "generating") return;
     if (isApiMode) return; // api 模式由 runPreview 完成后直接进入结果
-    if (stageIdx >= GENERATE_STAGES.length) {
-      setPhase("result");
-      return;
-    }
-    const t = setTimeout(() => setStageIdx((i) => i + 1), 500);
+    const done = stageIdx >= GENERATE_STAGES.length;
+    const t = window.setTimeout(() => {
+      if (done) setPhase("result");
+      else setStageIdx((i) => i + 1);
+    }, done ? 0 : 500);
     return () => clearTimeout(t);
   }, [phase, stageIdx]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setWeeksEnd(deadlineWeeks ? new Date(Date.now() + deadlineWeeks * 7 * 86400000) : null);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [deadlineWeeks]);
 
   function buildGoal(): LearningGoalInput {
     return learningGoalSchema.parse({
@@ -113,7 +129,7 @@ function Onboarding() {
     if (isApiMode) {
       try {
         const p: LearningPath = await previewPath(goal);
-        setResult({ title: p.title, rationale: p.rationale });
+        setResult({ id: p.id, title: p.title, rationale: p.rationale, nodes: p.nodes });
         setPhase("result");
       } catch {
         pushToast("路径生成失败，请稍后重试", "error");
@@ -121,7 +137,8 @@ function Onboarding() {
       }
     } else {
       // demo：确定性本地编排，仅作演示展示；stage 动画结束后由 effect 切入 result
-      setResult(demoPlanOf(goal));
+      const bundle = buildDemoTopicBundle(goal);
+      setResult({ id: bundle.path.id, ...demoPlanOf(goal), nodes: bundle.path.nodes });
     }
   }
 
@@ -131,26 +148,55 @@ function Onboarding() {
       return;
     }
     setConfirming(true);
+    setConfirmStage("creating");
     const goal = buildGoal();
     if (isApiMode) {
       try {
-        const res = await confirmPath(goal);
+        const res = await confirmPath(goal, result?.id);
         if ("conflict" in res) {
-          pushToast("你已有一条进行中的主路径，可到「我的路径」查看或调整", "warning");
+          pushToast("路径创建发生并发冲突，请返回路径列表后重试", "warning");
           router.replace("/paths");
           return;
         }
-        pushToast("学习路径已生成", "success");
+        window.localStorage.setItem("pf-active-path", res.id);
+        setConfirmStage("resources");
+        try {
+          const resources = await refreshPathResources(res.id);
+          if (resources.provider === "mock") {
+            pushToast("路径已创建；搜索服务未配置，资料仍待补充", "warning");
+          } else {
+            pushToast(
+              `路径已创建，并为 ${resources.nodesWithResources} 个节点补充了真实资料`,
+              "success",
+            );
+          }
+        } catch {
+          pushToast("路径已创建；资料检索暂时失败，可在节点页重新生成", "warning");
+        }
         router.replace("/paths");
       } catch {
         pushToast("确认路径失败，请稍后重试", "error");
         setConfirming(false);
+        setConfirmStage(null);
       }
       return;
     }
-    // demo：写入完整主题数据包（路径 + 全模块派生数据），各模块据此与主题保持一致
+    // demo：保存当前路径和路径列表；再次创建不会覆盖已有路径。
     const bundle = buildDemoTopicBundle(goal);
     try {
+      const rawPaths = window.localStorage.getItem("pf-demo-paths");
+      let storedPaths: Array<typeof bundle> = [];
+      if (rawPaths) {
+        try {
+          const parsed = JSON.parse(rawPaths) as unknown;
+          storedPaths = Array.isArray(parsed) ? (parsed as Array<typeof bundle>) : [];
+        } catch {
+          storedPaths = [];
+        }
+      }
+      const nextPaths = [...storedPaths.filter((item) => item.path.id !== bundle.path.id), bundle];
+      window.localStorage.setItem("pf-demo-paths", JSON.stringify(nextPaths));
+      window.localStorage.setItem("pf-active-path", bundle.path.id);
       window.localStorage.setItem(
         "pf-onboarded",
         JSON.stringify({
@@ -165,8 +211,8 @@ function Onboarding() {
       /* ignore storage failure */
     }
     setConfirming(false);
-    pushToast("学习路径已生成", "success");
-    router.replace("/home");
+    pushToast("新学习路径已创建", "success");
+    router.replace("/paths");
   }
 
   const steps = [
@@ -176,7 +222,6 @@ function Onboarding() {
     { n: 4, label: "期限" },
   ];
 
-  const weeksEnd = deadlineWeeks ? new Date(Date.now() + deadlineWeeks * 7 * 86400000) : null;
   const rationale = result?.rationale ?? null;
 
   return (
@@ -225,7 +270,7 @@ function Onboarding() {
             <div>
               <h2 className="text-lg font-semibold text-ink">你想学什么？</h2>
               <p className="mt-1 text-sm text-ink-2">
-                什么都可以学。只填一句「我想学 Python 做数据分析」也能生成，系统会围绕你的主题规划。
+                输入你真正想学的主题。AI 会结合目标、基础、时间和期限，生成一条可解释的学习路径。
               </p>
               <div className="mt-4 space-y-3">
                 <div>
@@ -237,44 +282,52 @@ function Onboarding() {
                     type="text"
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
-                    placeholder="例如：Python 数据分析 / 日语 / 摄影 / 产品经理"
+                    placeholder="例如：Python 数据分析、日语口语、摄影、产品经理"
+                    maxLength={120}
                     className="mt-1.5 block w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-ink"
+                    autoFocus
                   />
+                  <p className="mt-1 text-xs text-ink-3">必填，最多 120 个字符。尽量使用具体、可理解的主题名称。</p>
                 </div>
                 <div>
                   <label htmlFor="goal" className="text-sm font-medium text-ink">
-                    学习目标（可选）
+                    具体学习目标（可选）
                   </label>
                   <textarea
                     id="goal"
                     value={goalText}
                     onChange={(e) => setGoalText(e.target.value)}
                     rows={2}
-                    placeholder="例如：从零到能独立完成一份数据分析报告"
+                    placeholder="例如：从零到能够独立完成一份数据分析报告"
+                    maxLength={400}
                     className="mt-1.5 block w-full resize-none rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-ink"
                   />
                 </div>
               </div>
-              <p className="mt-4 text-sm text-ink-3">快速开始（点击即填入主题）：</p>
+              <p className="mt-4 text-sm text-ink-3">不知道从哪里开始？点击示例快速填入：</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {EXAMPLE_TOPICS.map((t) => (
+                {EXAMPLE_TOPICS.map((item) => (
                   <button
-                    key={t.label}
+                    key={item.label}
                     type="button"
                     onClick={() => {
-                      setTopic(t.label);
-                      setGoalText(t.desc);
+                      setTopic(item.label);
+                      setGoalText(item.desc);
                     }}
                     className={cn(
                       "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                      topic === t.label
+                      topic === item.label
                         ? "border-ink bg-subtle text-ink"
                         : "border-line bg-surface text-ink-2 hover:border-ink-2",
                     )}
+                    aria-pressed={topic === item.label}
                   >
-                    {t.label}
+                    {item.label}
                   </button>
                 ))}
+              </div>
+              <div className="mt-4 rounded-md bg-subtle/60 p-3 text-xs text-ink-2">
+                产品经理是一个有完整教材骨架的推荐主题；其他主题由 AI 结合公开资料编排，并明确标注来源与不确定性。
               </div>
             </div>
           ) : null}
@@ -473,7 +526,7 @@ function Onboarding() {
           <div className="mx-auto max-w-md">
             <p className="text-center text-lg font-semibold text-ink">AI 编排中</p>
             <p className="mt-1 text-center text-sm text-ink-2">
-              围绕「{topic || "你的主题"}」拆解技能与周计划（{isApiMode ? "真实编排" : "演示模拟"}）。
+              围绕「{topic || "你的主题"}」拆解知识、练习与周计划（{isApiMode ? "真实 API" : "演示模拟"}）。
             </p>
             <div className="mt-6 h-2 overflow-hidden rounded-full bg-subtle">
               <div
@@ -490,7 +543,9 @@ function Onboarding() {
                     i < stageIdx ? "text-ink" : i === stageIdx ? "text-ink font-medium" : "text-ink-3",
                   )}
                 >
-                  <span aria-hidden="true">{i < stageIdx ? "✓" : i === stageIdx ? "…" : "·"}</span>
+                  <span className="w-12 shrink-0 text-xs" aria-hidden="true">
+                    {i < stageIdx ? "完成" : i === stageIdx ? "进行中" : "待处理"}
+                  </span>
                   {s}
                   {i === stageIdx ? <AiNote className="ml-auto" /> : null}
                 </li>
@@ -512,6 +567,11 @@ function Onboarding() {
               </span>
             </div>
             <p className="mt-1 text-sm font-medium text-ink">{result.title}</p>
+            <div className="mt-2">
+              <Badge tone="info">
+                {rationale?.skills?.length ?? 0} 个技能节点 · 可继续添加其他路径
+              </Badge>
+            </div>
             <p className="mt-1 text-sm text-ink-2">{rationale?.rationale}</p>
 
             <Divider className="my-4" />
@@ -537,6 +597,82 @@ function Onboarding() {
                 <dd className="font-medium text-ink">{rationale?.providerLabel}</dd>
               </div>
             </dl>
+          </Card>
+
+          <Card className="p-5 md:p-6">
+            <SectionHeading
+              title="路径依据与可信度"
+              description="先查看真实检索依据，再决定是否采用这条路径。"
+              actions={
+                <Badge tone={rationale?.evidenceConfidence === "high" ? "success" : rationale?.evidenceConfidence === "medium" ? "warning" : "neutral"}>
+                  {rationale?.evidenceConfidence === "high" ? "证据较充分" : rationale?.evidenceConfidence === "medium" ? "证据一般" : "证据不足"}
+                </Badge>
+              }
+            />
+            <div className="mt-3 rounded-md border border-line bg-subtle/45 p-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge tone={rationale?.providerLabel?.includes("Mock") ? "warning" : "success"}>
+                  编排：{rationale?.providerLabel || "未知"}
+                </Badge>
+                <Badge tone={rationale?.searchProviderLabel?.includes("Mock") || rationale?.searchProviderLabel?.includes("未配置") ? "warning" : "success"}>
+                  检索：{rationale?.searchProviderLabel || "未知"}
+                </Badge>
+                <span className="text-ink-3">
+                  {rationale?.nodesWithResources ?? 0}/{rationale?.searchedNodeCount ?? result.nodes.length} 个核心节点有候选资料
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-ink-2">
+                {rationale?.evidenceCoverageSummary || "尚未形成可核验的资料覆盖报告。"}
+              </p>
+            </div>
+
+            {rationale?.searchQueries?.length ? (
+              <details className="mt-3 rounded-md border border-line px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium text-ink">查看 Agent 扩展的检索词</summary>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {rationale.searchQueries.slice(0, 12).map((query) => (
+                    <span key={query} className="rounded-full border border-line bg-subtle px-2.5 py-1 text-xs text-ink-2">
+                      {query}
+                    </span>
+                  ))}
+                </div>
+              </details>
+            ) : null}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {result.nodes.slice(0, 6).map((node) => (
+                <div key={node.id} className="rounded-md border border-line p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-ink">{node.title}</p>
+                    <span className="shrink-0 text-xs text-ink-3">{node.resources.length} 条</span>
+                  </div>
+                  {node.resources.length > 0 ? (
+                    <ul className="mt-2 space-y-2">
+                      {node.resources.slice(0, 3).map((resource) => (
+                        <li key={resource.id} className="text-xs">
+                          <a
+                            href={resource.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-ink"
+                          >
+                            {resource.title}
+                          </a>
+                          <p className="mt-0.5 text-ink-3">
+                            {resource.grade} 级 · {resource.domain} · 待可访问性核验
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-warning">未找到足够候选资料，建议调整节点或重新检索。</p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-ink-3">
+              候选资料来自实时公开搜索，A/B/C 为机器初筛，不代表人工认证；确认后系统会重新检索、去重并持久化。
+            </p>
           </Card>
 
           {rationale?.weeks && rationale.weeks.length > 0 ? (
@@ -582,7 +718,7 @@ function Onboarding() {
                 <span className="text-xs text-ink-3">离线演示下不能确认路径</span>
               ) : null}
               <Button onClick={handleConfirm} loading={confirming} disabled={demoState === "offline"}>
-                确认此路径
+                {confirmStage === "resources" ? "正在检索并保存资料" : confirmStage === "creating" ? "正在创建路径" : "确认此路径"}
               </Button>
             </div>
           </div>

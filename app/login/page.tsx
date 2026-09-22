@@ -9,8 +9,10 @@ import { DemoTag, OfflineState } from "@/components/states";
 import { ALL_ROLES, roleLabel, roleDescription } from "@/lib/demo";
 import { mockFetch } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
-import { login as apiLogin } from "@/lib/api/auth";
+import { demoLogin as apiDemoLogin, login as apiLogin } from "@/lib/api/auth";
 import type { Role } from "@/lib/types";
+import { ThemeToggle } from "@/components/theme";
+import { ArrowLeft, Path, Sparkle } from "@phosphor-icons/react";
 
 function sanitizeReturnTo(raw: string | null): string {
   if (!raw) return "/home";
@@ -36,6 +38,7 @@ function LoginInner() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [quickRole, setQuickRole] = useState<Role | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) router.replace(returnTo);
@@ -73,42 +76,57 @@ function LoginInner() {
     }
   }
 
-  function quickEnter(role: Role) {
+  async function quickEnter(role: Exclude<Role, "guest">) {
     if (demoState === "offline") {
       pushToast("当前离线演示，无法切换角色", "error");
       return;
     }
-    setRole(role);
-    pushToast("已以演示身份进入", "success");
-    router.replace(returnTo);
+    if (loading || quickRole) return;
+    setError("");
+    setQuickRole(role);
+    try {
+      if (isApiMode) {
+        const profile = await apiDemoLogin(role);
+        signIn(profile);
+      } else {
+        await mockFetch({ ok: true }, { latency: [250, 450] });
+        setRole(role);
+      }
+      pushToast(`已以${roleLabel(role)}身份进入`, "success");
+      router.replace(returnTo);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "一键登录失败，请稍后重试。");
+      setQuickRole(null);
+    }
   }
 
   return (
-    <div className="min-h-screen bg-canvas md:grid md:grid-cols-[minmax(280px,1fr)_minmax(0,1.4fr)]">
+    <div className="pf-app-canvas relative min-h-screen bg-canvas md:grid md:grid-cols-[minmax(300px,.75fr)_minmax(0,1.4fr)]">
       {/* 左侧品牌区 */}
-      <aside className="hidden flex-col justify-between bg-ink p-8 text-white md:flex">
+      <aside className="hidden flex-col justify-between border-r border-line bg-[var(--pf-sidebar)] p-8 text-ink backdrop-blur-xl md:flex">
         <div>
-          <p className="text-lg font-semibold tracking-tight">知径 Pathfinder</p>
-          <p className="mt-1 text-sm text-white/70">可信学习路径</p>
+          <p className="flex items-center gap-2 text-lg font-semibold tracking-tight"><span className="flex size-8 items-center justify-center rounded-md border border-line bg-subtle text-action"><Path size={18} weight="bold" /></span>知径 Pathfinder</p>
+          <p className="mt-2 text-sm text-ink-2">可信学习路径</p>
         </div>
-        <ul className="space-y-3 text-sm text-white/80">
+        <ul className="space-y-3 text-sm text-ink-2">
           <li className="flex gap-2">
-            <span aria-hidden="true">·</span>教材锚定：不按热点堆课
+            <Sparkle size={16} className="text-action" />教材锚定：不按热点堆课
           </li>
           <li className="flex gap-2">
-            <span aria-hidden="true">·</span>来源可解释：A/B/C 分级证据
+            <Sparkle size={16} className="text-action" />来源可解释：A/B/C 分级证据
           </li>
           <li className="flex gap-2">
-            <span aria-hidden="true">·</span>费曼验证：讲给 AI 听
+            <Sparkle size={16} className="text-action" />费曼验证：讲给 AI 听
           </li>
         </ul>
-        <Link href="/" className="inline-flex h-11 items-center text-sm text-white/70 hover:text-white">
-          ← 返回首页
+        <Link href="/" className="inline-flex h-11 items-center gap-2 text-sm text-ink-2 hover:text-ink">
+          <ArrowLeft size={16} /> 返回首页
         </Link>
       </aside>
 
       {/* 右侧表单 */}
       <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="absolute right-5 top-5"><ThemeToggle compact /></div>
         <div className="w-full max-w-md">
           <div className="mb-6 flex items-center gap-2 md:hidden">
             <Link href="/" className="text-sm font-semibold text-ink">
@@ -179,35 +197,40 @@ function LoginInner() {
               : "演示登录不会发送真实请求，密码不会被记录或上传。"}
           </p>
 
-          {isApiMode ? null : <Divider className="my-6" />}
+          <Divider className="my-6" />
 
-          {isApiMode ? null : <div className="rounded-md border border-line bg-subtle/50 p-4">
+          <div className="pf-glass rounded-lg p-4">
             <p className="text-sm font-medium text-ink">
               以演示角色快速进入
               <span className="ml-2">
                 <DemoTag />
               </span>
             </p>
-            <p className="mt-1 text-xs text-ink-3">点击后直接以该演示身份进入，无需输入密码。</p>
+            <p className="mt-1 text-xs text-ink-3">
+              {isApiMode
+                ? "点击后由后端签发隔离的演示会话，无需填写或暴露预置密码。"
+                : "点击后直接切换本地演示身份，不发送账号密码。"}
+            </p>
             <div className="mt-3 grid gap-2">
               {ALL_ROLES.map((role) => (
                 <button
                   key={role}
                   type="button"
                   onClick={() => quickEnter(role)}
-                  disabled={loading}
+                  disabled={loading || quickRole !== null}
                   className="flex min-h-[44px] items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-ink-2 hover:bg-subtle disabled:opacity-50"
                 >
                   <span>
                     <span className="block text-sm font-medium text-ink">{roleLabel(role)}</span>
                     <span className="block text-xs text-ink-3">{roleDescription(role)}</span>
                   </span>
-                  <span className="shrink-0 text-xs text-ink-2">进入 →</span>
+                  <span className="shrink-0 text-xs text-ink-2">
+                    {quickRole === role ? "正在进入" : "进入"}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
-          }
         </div>
       </main>
     </div>

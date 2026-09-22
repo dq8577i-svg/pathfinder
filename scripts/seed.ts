@@ -53,12 +53,14 @@ const EXPECTED = {
 
 function assertExpected(name: string, actual: number): void {
   const exp = EXPECTED[name as keyof typeof EXPECTED];
-  if (actual !== exp) {
+  // Seed 可能在已有真实用户/路径的数据库上重复运行；只要求演示基线完整，
+  // 不再因业务数据多于基线而阻断容器重启。
+  if (actual < exp) {
     throw new Error(
-      `[对拍失败] ${name} 实际 ${actual} ≠ demo 期望 ${exp}。已停止，不自行修正数据。`,
+      `[对拍失败] ${name} 实际 ${actual} < demo 最低基线 ${exp}。已停止，不自行修正数据。`,
     );
   }
-  console.log(`  ✓ ${name}: ${actual}（= 期望 ${exp}）`);
+  console.log(`  ✓ ${name}: ${actual}（演示最低基线 ${exp}）`);
 }
 
 async function main(): Promise<void> {

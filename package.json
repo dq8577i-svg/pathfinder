@@ -1,21 +1,37 @@
 {
-  "name": "pathfinder-demo",
+  "name": "pathfinder-demoz-v2",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint app components lib scripts proxy.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx scripts/seed.ts",
+    "test:topic": "tsx tests/e2e/demo-topic-e2e.ts",
+    "test:e2e:demo": "node tests/e2e/run.js",
+    "test:e2e:api": "node tests/e2e/api-mode.js",
+    "test:e2e:paths": "node tests/e2e/paths-workbench.js",
+    "test:e2e:infra": "node tests/e2e/api-infra.js",
+    "test:acceptance": "npm run typecheck && npm run test:topic"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1131.0",
+    "@aws-sdk/s3-request-presigner": "^3.1131.0",
+    "@phosphor-icons/react": "^2.1.10",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.8",
-    "next": "16.2.10",
+    "next": "^16.3.5",
     "pg": "^8.23.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "redis": "^6.2.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -26,8 +42,17 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.10",
+    "eslint-config-next": "^16.3.5",
+    "puppeteer-core": "^25.10.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "sharp@0.35.4": true,
+    "unrs-resolver@1.12.2": true
   }
 }

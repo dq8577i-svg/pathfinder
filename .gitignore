@@ -20,13 +20,18 @@
 next-env.d.ts
 
 # logs
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
 # e2e 运行产物（脚本保留，日志/输出不入库）
-e2e-tmp/*.log
-e2e-tmp/run-out.txt
+tests/e2e/*.log
+tests/e2e/run-out.txt
+
+# 本地截图与覆盖率
+docs/screenshots/
+coverage/
 
 # 构建/杂散产物
 tsc-out.txt

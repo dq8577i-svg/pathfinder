@@ -4,7 +4,7 @@
  * portfolio_items 表（user_id + path_id 绑定，绝不读 demo）。
  * 用户主动沉淀学习资产：类型 project/note/link，可见性 private/shared/public_link。
  */
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { portfolioItems } from "@/lib/db/schema";
 import { assertPathOwned, newId, PathNotFoundError } from "@/lib/modules/shared";

@@ -5,7 +5,7 @@
  * 已通过 HttpOnly Cookie（pf_session）建立会话，此处只负责读取返回的用户画像。
  */
 import { api, apiOrNull } from "./client";
-import type { UserProfile } from "@/lib/types";
+import type { Role, UserProfile } from "@/lib/types";
 
 /** 后端 /auth/me 返回的用户画像（不含 password_hash） */
 interface PublicUser {
@@ -40,6 +40,18 @@ export async function register(input: { email: string; password: string; display
 
 export async function login(input: { email: string; password: string }): Promise<UserProfile> {
   const d = await api<{ user: PublicUser }>("/auth/login", { method: "POST", body: input });
+  return toProfile(d.user);
+}
+
+/**
+ * 体验环境的一键角色登录。后端负责把角色映射到隔离的演示账号并签发
+ * HttpOnly 会话；客户端不保存预置密码，也不能传入 guest。
+ */
+export async function demoLogin(role: Exclude<Role, "guest">): Promise<UserProfile> {
+  const d = await api<{ user: PublicUser }>("/auth/demo-login", {
+    method: "POST",
+    body: { role },
+  });
   return toProfile(d.user);
 }
 

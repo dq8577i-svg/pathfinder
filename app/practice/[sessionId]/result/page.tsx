@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { resolvePracticeSession, pathFor, PATH_PM, nodeById, NOTES, PRACTICE_FEEDBACK_DONE } from "@/lib/demo";
@@ -56,7 +56,7 @@ export default function PracticeResultPage() {
   }, [session, role, apiNode]);
 
   const demoFeedback: PracticeFeedback | null = session?.status === "completed" ? PRACTICE_FEEDBACK_DONE : null;
-  const [feedback, setFeedback] = useState<PracticeFeedback | null>(null);
+  const [generatedFeedback, setGeneratedFeedback] = useState<PracticeFeedback | null>(null);
   const [evalLoading, setEvalLoading] = useState(false);
 
   const [note, setNote] = useState<FeynmanNote | null>(null);
@@ -64,25 +64,32 @@ export default function PracticeResultPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   // demo 数据中 generatedAt 在模块加载时生成，SSR 与客户端首帧取值可能不同；
   // 挂载后再渲染时间，避免水合不匹配。
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(subscribeToNothing, clientSnapshot, serverSnapshot);
 
   // api 模式：会话已完成轮次但尚无评价 → 幂等触发评价并生成反馈
   useEffect(() => {
-    if (!isApiMode || !session) return;
-    if (detail?.feedback) {
-      setFeedback(detail.feedback);
-      return;
-    }
+    if (!isApiMode || !session || detail?.feedback) return;
     if (session.status === "completed" || session.currentRound >= session.totalRounds) {
-      setEvalLoading(true);
-      evaluatePracticeSession(sessionId)
-        .then((r) => setFeedback(r.feedback))
-        .catch(() => setFeedback(null))
-        .finally(() => setEvalLoading(false));
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setEvalLoading(true);
+        evaluatePracticeSession(sessionId)
+          .then((r) => {
+            if (!cancelled) setGeneratedFeedback(r.feedback);
+          })
+          .catch(() => {
+            if (!cancelled) setGeneratedFeedback(null);
+          })
+          .finally(() => {
+            if (!cancelled) setEvalLoading(false);
+          });
+      });
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [isApiMode, session, detail, sessionId]);
+  }, [session, detail, sessionId]);
 
   // demo 模式：本地已保存的笔记优先（key: pf-note-<sessionId>）
   const { data: notesData } = useAsync(
@@ -91,42 +98,44 @@ export default function PracticeResultPage() {
   );
   useEffect(() => {
     if (isApiMode) return;
-    const base = NOTES.find((n) => n.sessionId === sessionId);
-    if (base) setNote({ ...base });
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(`pf-note-${sessionId}`);
-    if (saved) {
-      try {
-        setNote(JSON.parse(saved) as FeynmanNote);
-      } catch {
-        /* ignore */
+    const timer = window.setTimeout(() => {
+      const base = NOTES.find((n) => n.sessionId === sessionId);
+      if (base) setNote({ ...base });
+      const saved = window.localStorage.getItem(`pf-note-${sessionId}`);
+      if (saved) {
+        try {
+          setNote(JSON.parse(saved) as FeynmanNote);
+        } catch {
+          /* ignore */
+        }
       }
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [sessionId]);
 
   // api 模式：已有笔记优先，否则空白模板（保存时创建真实笔记）
   useEffect(() => {
     if (!isApiMode || !notesData) return;
-    const found = notesData.find((n) => n.sessionId === sessionId) ?? null;
-    if (found) {
-      setNote(found);
-      return;
-    }
-    setNote({
-      id: "",
-      sessionId,
-      nodeId: session?.nodeId ?? "",
-      title: `${node?.title ?? "费曼练习"} · 笔记`,
-      content: "",
-      keyTerms: [],
-      pendingQuestions: [],
-      selfAssessed: false,
-      updatedAt: new Date().toISOString(),
-      statusFilter: "all",
-      sourceTag: "ai_draft",
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isApiMode, notesData, sessionId, session?.nodeId, node?.title]);
+    const timer = window.setTimeout(() => {
+      const found = notesData.find((n) => n.sessionId === sessionId) ?? null;
+      setNote(
+        found ?? {
+          id: "",
+          sessionId,
+          nodeId: session?.nodeId ?? "",
+          title: `${node?.title ?? "费曼练习"} · 笔记`,
+          content: "",
+          keyTerms: [],
+          pendingQuestions: [],
+          selfAssessed: false,
+          updatedAt: new Date().toISOString(),
+          statusFilter: "all",
+          sourceTag: "ai_draft",
+        },
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [notesData, sessionId, session?.nodeId, node?.title]);
 
   if (isApiMode && detailLoading) {
     return (
@@ -162,7 +171,7 @@ export default function PracticeResultPage() {
     );
   }
 
-  const resolvedFeedback = isApiMode ? feedback : demoFeedback;
+  const resolvedFeedback = isApiMode ? (detail?.feedback ?? generatedFeedback) : demoFeedback;
   if (!resolvedFeedback) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
@@ -258,9 +267,9 @@ export default function PracticeResultPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* 左：三大判定 + 维度 + 置信提示 */}
         <section className="space-y-4">
-          <VerdictCard title="这次你已经讲清" icon="✓" items={resolvedFeedback.clear} tone="success" />
-          <VerdictCard title="仍待补充" icon="△" items={resolvedFeedback.toAdd} tone="warning" />
-          <VerdictCard title="尚未覆盖" icon="○" items={resolvedFeedback.notCovered} tone="danger" />
+          <VerdictCard title="这次你已经讲清" icon="已讲清" items={resolvedFeedback.clear} tone="success" />
+          <VerdictCard title="仍待补充" icon="待补充" items={resolvedFeedback.toAdd} tone="warning" />
+          <VerdictCard title="尚未覆盖" icon="未覆盖" items={resolvedFeedback.notCovered} tone="danger" />
 
           <div className="grid gap-3 sm:grid-cols-3">
             {(["completeness", "accuracy", "clarity"] as const).map((key) => {
@@ -376,6 +385,18 @@ function formatDateTime(isoStr: string): string {
   if (Number.isNaN(d.getTime())) return isoStr;
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function subscribeToNothing() {
+  return () => undefined;
+}
+
+function clientSnapshot() {
+  return true;
+}
+
+function serverSnapshot() {
+  return false;
 }
 
 function VerdictCard({

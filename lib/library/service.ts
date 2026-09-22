@@ -63,7 +63,23 @@ export async function listLibraryItems(userId: string, pathId: string): Promise<
   return rows.map(toDto);
 }
 
-/** 用户手动添加资料：链接（url 必填）/ 文件元数据 / 笔记，均落库 */
+/** Owner-scoped single item lookup. Other users and missing rows are identical. */
+export async function getLibraryItemForUser(
+  userId: string,
+  itemId: string,
+): Promise<LibraryItemDto> {
+  const row = (
+    await db
+      .select()
+      .from(libraryItems)
+      .where(and(eq(libraryItems.id, itemId), eq(libraryItems.userId, userId)))
+      .limit(1)
+  )[0];
+  if (!row) throw new PathNotFoundError();
+  return toDto(row);
+}
+
+/** 用户手动添加资料。upload 仅允许由已完成对象上传的服务端路由调用。 */
 export async function createLibraryItem(
   userId: string,
   input: CreateLibraryInput,

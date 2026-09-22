@@ -89,8 +89,11 @@ export function useDemoTopic(): DemoTopicState {
 
   useEffect(() => {
     if (!hydrated) return;
-    setData(!isApiMode && role === "new_learner" ? readDemoTopicBundle() : null);
-    setReady(true);
+    const timer = window.setTimeout(() => {
+      setData(!isApiMode && role === "new_learner" ? readDemoTopicBundle() : null);
+      setReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [hydrated, role]);
 
   const updateBundle = useCallback((b: DemoTopicBundle) => {

@@ -32,7 +32,12 @@ export function ScenarioApiView() {
   useEffect(() => {
     if (!scenarioId) return;
     let cancelled = false;
-    setLoading(true);
+    const loadingTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setLoading(true);
+        setNotFound(false);
+      }
+    }, 0);
     getScenario(scenarioId)
       .then((s) => {
         if (cancelled) return;
@@ -52,6 +57,7 @@ export function ScenarioApiView() {
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingTimer);
     };
   }, [scenarioId]);
 

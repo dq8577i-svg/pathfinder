@@ -23,7 +23,6 @@ const ASSET_TYPE_LABEL: Record<string, string> = { note: "笔记", scenario: "�
 const LAB_TITLE: Record<string, string> = { "scenario-priority": "向研发解释优先级" };
 
 export default function SpacePage() {
-  const flags = useAppStore((s) => s.flags);
   const demoState = useAppStore((s) => s.demoState);
 
   return (

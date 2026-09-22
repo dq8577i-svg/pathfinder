@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const envRaw = readFileSync(join(root, ".env.local"), "utf8");
 const key = (envRaw.match(/^TAVILY_API_KEY=(.*)$/m) || [])[1]?.trim();
 if (!key) {

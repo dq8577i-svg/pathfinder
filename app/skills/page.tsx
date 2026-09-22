@@ -33,7 +33,10 @@ const CONF_LABEL: Record<SkillDimension["confidence"], string> = {
 };
 
 export default function SkillsPage() {
-  if (isApiMode) return <SkillsApiView />;
+  return isApiMode ? <SkillsApiView /> : <DemoSkillsPage />;
+}
+
+function DemoSkillsPage() {
   const { data: topic, ready } = useDemoTopic();
   if (!ready) return <LoadingState label="正在加载技能雷达…" />;
   const dims = topic ? topic.skills : SKILL_DIMENSIONS;

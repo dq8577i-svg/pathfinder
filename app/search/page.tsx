@@ -40,7 +40,10 @@ function resultHref(r: SearchResult, topic: DemoTopicBundle | null): string {
 }
 
 export default function SearchPage() {
-  if (isApiMode) return <SearchApiView />;
+  return isApiMode ? <SearchApiView /> : <DemoSearchPage />;
+}
+
+function DemoSearchPage() {
   const demoState = useAppStore((s) => s.demoState);
 
   return (
@@ -146,7 +149,6 @@ function SearchBody() {
         <LoadingState label="正在检索与排序…" />
       ) : results.length === 0 ? (
         <EmptyState
-          icon="◎"
           title="没有匹配结果"
           description="尝试改写关键词，或扩大检索范围（节点、笔记、资料、小队作品）。"
         />

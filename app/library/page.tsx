@@ -46,7 +46,10 @@ const EMPTY_FORM: NewItemForm = { kind: "link", title: "", url: "", sourceName: 
 type TabValue = "all" | LibraryItem["kind"];
 
 export default function LibraryPage() {
-  if (isApiMode) return <LibraryApiView />;
+  return isApiMode ? <LibraryApiView /> : <DemoLibraryPage />;
+}
+
+function DemoLibraryPage() {
   const demoState = useAppStore((s) => s.demoState);
   const pushToast = useAppStore((s) => s.pushToast);
   const { data: topic, ready, updateBundle } = useDemoTopic();

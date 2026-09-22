@@ -2,7 +2,7 @@
  * 知径 Pathfinder — GET/POST /api/v1/library（个人资料库）
  *
  * GET ?pathId= 列出当前用户某路径的资料（user_id + path_id 隔离，绝不读 demo）；
- * POST 用户手动新增链接 / 文件元数据 / 笔记，落库。
+ * POST 用户手动新增链接 / 笔记。真实文件必须走 /library/upload。
  */
 import { z } from "zod";
 import { err, fail, ok } from "@/lib/api/response";
@@ -13,14 +13,12 @@ import { PathNotFoundError } from "@/lib/modules/shared";
 
 const createSchema = z.object({
   pathId: z.string().min(1),
-  kind: z.enum(["link", "upload", "note"]),
+  kind: z.enum(["link", "note"]),
   title: z.string().min(1).max(200),
   url: z.string().url().optional().nullable(),
   sourceName: z.string().max(200).optional(),
   tags: z.array(z.string().max(50)).max(10).optional(),
   memo: z.string().max(4000).optional(),
-  objectKey: z.string().max(500).optional().nullable(),
-  size: z.string().max(50).optional().nullable(),
 });
 
 export async function GET(req: Request) {

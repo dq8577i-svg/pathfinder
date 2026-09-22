@@ -28,28 +28,31 @@ export function useAsync<T>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fnRef = useRef(fn);
-  fnRef.current = fn;
   const [tick, setTick] = useState(0);
   const enabled = opts.enabled ?? true;
 
   useEffect(() => {
-    if (!enabled) {
-      setLoading(false);
-      return;
-    }
+    fnRef.current = fn;
+  }, [fn]);
+
+  useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fnRef.current()
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
+      fnRef.current()
+        .then((d) => {
+          if (!cancelled) setData(d);
+        })
+        .catch((e: unknown) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    });
     return () => {
       cancelled = true;
     };
@@ -57,7 +60,7 @@ export function useAsync<T>(
   }, [enabled, tick, ...deps]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  return { data, loading, error, reload };
+  return { data, loading: enabled && loading, error, reload };
 }
 
 /** 未登录视为空数据（refresh 场景），其余错误透传 */

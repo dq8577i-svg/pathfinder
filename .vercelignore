@@ -1,0 +1,15 @@
+# 部署到 Vercel 时不上传的内容。
+# 最重要的一条:绝不把本机 env 文件传到云端。
+# 站点以 demo 模式运行(NEXT_PUBLIC_DATA_SOURCE 未设 -> 默认 demo),不需要任何真实 key。
+.env
+.env.*
+.env*
+
+# 文档与截图不参与运行,不上传(减小上传体积)
+docs/
+design-qa.md
+
+# 本机产物
+.next
+node_modules
+*.log

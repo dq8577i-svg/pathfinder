@@ -1,7 +1,6 @@
-// 知径 Pathfinder — M8 api-mode 完整用户链路浏览器验收（通用学习规划阶段）
-// 真实前端 → API → PostgreSQL → DeepSeek AI → 返回前端渲染。
-// Chain 1：注册(UI)→通用目标诊断(UI)→确认路径→路径→费曼练习(真 AI)→评价→笔记→空间→退出。
-// 主题取「Python 数据分析」；路径标题/节点标题由 AI 围绕该主题生成，不做产品假设。
+// 知径 Pathfinder DemoZ V2 — api-mode 完整用户链路浏览器验收。
+// 真实前端 → API → PostgreSQL → 服务端 AI Provider（可为 Mock/DeepSeek）→ 前端渲染。
+// 产品合同：用户可输入任意学习主题，可创建并切换多条路径；产品经理仅是策展模板之一。
 const { launch, Chain } = require("./lib");
 
 const browserP = launch();
@@ -51,10 +50,11 @@ async function main() {
     await c.sleep(3500);
     c.ok((await c.url()).includes("/onboarding"), "注册后自动登录跳转目标诊断", c.url());
     await c.waitForText("你想学什么", 15000);
-    c.ok(true, "注册成功进入通用目标诊断第一步");
+    c.ok(await c.hasText("学习主题"), "注册成功进入任意主题创建流程");
 
-    // 2. 通用目标诊断（UI 四步：主题→基础→时间→期限）→ 预览 → 确认
+    // 2. 任意主题诊断（UI 四步：主题→基础→时间→期限）→ 预览 → 确认
     await c.type("#topic", "Python 数据分析");
+    await c.type("#goal", "12 周内独立完成一份可复现的数据分析报告");
     await c.clickText("下一步");
     await c.waitForText("你目前的水平", 10000);
     await c.clickText("零基础");
@@ -66,7 +66,10 @@ async function main() {
     await c.clickText("12 周");
     await c.clickText("生成路径方案");
     await c.waitForText("确认此路径", 45000);
-    c.ok(await c.hasText("Python"), "路径方案围绕用户主题生成（含 Python）");
+    c.ok(await c.hasText("Python 数据分析学习路径"), "路径方案围绕用户输入主题");
+    c.ok(await c.hasText("个技能节点"), "通用主题生成可执行技能节点");
+    c.ok(await c.hasText("路径依据与可信度"), "确认前展示真实依据与可信度");
+    c.ok(await c.hasText("检索：Tavily 实时检索"), "确认前展示真实检索 Provider");
     await c.clickText("确认此路径");
     // confirm 会再次调用真实 AI 规划（服务端确定性映射），耗时可能 10–30s；
     // 等待真实导航到 /paths，而不是固定 sleep。
@@ -74,18 +77,46 @@ async function main() {
       .waitForFunction(() => location.pathname.startsWith("/paths"), { timeout: 120000, polling: 500 })
       .then(() => c.ok(true, "确认后跳转 /paths", c.url()))
       .catch(() => c.ok(false, "确认后跳转 /paths", c.url()));
-    await c.waitForText("Python", 20000);
-    c.ok(true, "/paths 渲染真实主路径（含主题）");
+    await c.waitForText("Python 数据分析学习路径", 20000);
+    c.ok(await c.hasText("新建路径"), "/paths 提供继续创建路径入口");
 
-    // 3. /path 渲染真实周计划节点（第 N 周 分组；UTF-8）
+    // 3. 创建第二条主题路径；验证第一条仍然保留，并可显式切换当前路径
+    await c.clickText("新建路径");
+    await c.waitForText("你想学什么", 15000);
+    await c.type("#topic", "摄影");
+    await c.type("#goal", "三个月后能够独立拍摄一组人像作品");
+    await c.clickText("下一步");
+    await c.clickText("零基础");
+    await c.clickText("下一步");
+    await c.clickText("5 小时");
+    await c.clickText("下一步");
+    await c.clickText("12 周");
+    await c.clickText("生成路径方案");
+    await c.waitForText("确认此路径", 45000);
+    c.ok(await c.hasText("摄影学习路径"), "第二条路径预览围绕新主题");
+    await c.clickText("确认此路径");
+    await c.page.waitForFunction(() => location.pathname === "/paths", { timeout: 120000, polling: 500 });
+    await c.waitForText("Python 数据分析学习路径", 20000);
+    c.ok(await c.hasText("摄影学习路径"), "两条真实数据库路径同时保留");
+    c.ok(await c.hasText("当前路径"), "新创建路径被标记为当前路径");
+
+    // 新路径确认后默认成为客户端当前路径；切回 Python 验证跨页面选择生效
+    await c.clickText("设为当前路径");
+    const activeToast = await c.waitToast("已将「Python 数据分析学习路径」设为当前路径", 10000);
+    c.ok(activeToast, "可以显式切换当前路径");
+
+    // 4. /path 渲染当前选中的 Python 路径，不再回退到产品经理固定教材
     await c.goto("/path");
-    await c.waitForText("第 1 周", 20000);
-    c.ok(await c.hasText("第 1 周"), "/path 渲染真实周计划分组");
+    await c.waitForText("Python 数据分析学习路径", 20000);
+    const pathBody = await c.bodyText();
+    c.ok(/0\/\d+ 已完成/.test(pathBody), "/path 渲染当前主题的动态节点进度");
+    c.ok(!(await c.hasText("产品经理角色与工作边界")), "/path 未混入产品经理固定节点");
+    await c.page.waitForSelector('button[aria-label^="打开节点："]', { visible: true, timeout: 20000 });
     await c.click('button[aria-label^="打开节点："]');
     await c.waitForText("开始费曼练习", 15000);
     c.ok(true, "节点详情页渲染（围绕用户主题的首节点）");
 
-    // 4. 开始费曼练习
+    // 5. 开始费曼练习
     await c.clickText("开始费曼练习");
     await c.sleep(3500);
     const pracUrl = await c.url();
@@ -93,16 +124,16 @@ async function main() {
     sid = pracUrl.split("/practice/")[1].split("?")[0];
     c.ok(!!sid, "获得会话 ID", sid);
 
-    // 5. 练习 UI：真实输入 → 真 AI 回复渲染（轮次前进 = AI 已回复）
+    // 6. 练习 UI：真实输入 → 服务端 Provider 回复渲染（轮次前进 = AI 已回复）
     await c.page.waitForSelector("textarea", { visible: true, timeout: 15000 });
-    await c.type("textarea", "Python 数据分析的核心是把数据清洗、分析和可视化串起来，用结论驱动决策。");
+    await c.type("textarea", "Python 数据分析要先明确问题，再清洗数据、选择方法并验证结论。");
     await c.press("Enter");
     await c.waitForText("第 2 / 5 轮", 90000);
     const afterAI = await c.bodyText();
-    c.ok(await c.hasText("AI 生成"), "真 AI 回复已渲染（UI 输入 → API → DeepSeek → 前端）");
-    c.ok(afterAI.includes("Python 数据分析的核心是"), "用户消息已渲染");
+    c.ok(await c.hasText("AI 生成"), "服务端 AI Provider 回复已渲染（UI → API → Provider → 前端）");
+    c.ok(afterAI.includes("Python 数据分析要先明确问题"), "用户消息已渲染");
 
-    // 6. 剩余轮次（2–5）：浏览器上下文 fetch（同 Cookie）→ 真 AI → 刷新渲染
+    // 6. 剩余轮次（2–5）：浏览器上下文 fetch（同 Cookie）→ Provider → 刷新渲染
     for (let i = 2; i <= 5; i++) {
       await c.page.evaluate(async ({ sid, i }) => {
         const res = await fetch(`/api/v1/practice/sessions/${sid}/messages`, {
@@ -132,7 +163,7 @@ async function main() {
     await c.waitForText("第 5 / 5 轮", 25000);
     c.ok(await c.hasText("AI 生成"), "练习页刷新后渲染全部真实对话");
 
-    // 7. 结果页：真 AI 评价 + 笔记
+    // 7. 结果页：服务端 AI 评价 + 笔记
     await c.goto(`/practice/${sid}/result`);
     await c.waitForText("这次你已经讲清", 90000);
     c.ok(await c.hasText("仍待补充"), "结果页渲染真实三维评价");

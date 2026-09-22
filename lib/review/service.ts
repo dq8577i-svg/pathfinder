@@ -5,7 +5,7 @@
  * 生成：对尚无卡片的节点逐个调 AiProvider.generateReviewCards（AI 或模板兜底，
  * sourceType 如实区分 ai/template）。status 流转：new → reviewing → mastered。
  */
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { reviewCards } from "@/lib/db/schema";
 import { getAiProvider } from "@/lib/ai";

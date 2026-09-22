@@ -5,7 +5,15 @@
 const BASE = "http://localhost:3000/api/v1";
 let passed = 0, failed = 0;
 const failures = [];
-const check = (n, c, e = "") => { c ? passed++ : (failed++, failures.push(n), console.log("  ✗", n, e)); };
+const check = (n, c, e = "") => {
+  if (c) {
+    passed++;
+  } else {
+    failed++;
+    failures.push(n);
+    console.log("  ✗", n, e);
+  }
+};
 
 let jarA = "", jarB = "";
 async function req(jar, method, path, body) {

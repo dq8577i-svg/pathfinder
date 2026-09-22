@@ -26,20 +26,25 @@ function challengeTitleFor(crew: Crew): string | null {
 }
 
 export default function CrewsPage() {
-  if (isApiMode) {
-    return (
-      <FeatureGate flag="crews">
-        <PageHeader title="小队空间" description="与目标一致的同伴组成小队，围绕共同截止日完成挑战并互相给结构化反馈。" />
-        <Card className="flex min-h-[280px] flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-          <p className="text-base font-semibold text-ink">小队功能未实现（P2）</p>
-          <p className="max-w-md text-sm text-ink-2">
-            本轮 api 模式暂不开放小队。请先使用学习路径、真实资料、情境练习与复习来推进当前主题；小队将在后续阶段按学习路径与目标进行绑定。
-          </p>
-          <Badge tone="neutral">占位说明</Badge>
-        </Card>
-      </FeatureGate>
-    );
-  }
+  return isApiMode ? <ApiCrewsPlaceholder /> : <DemoCrewsPage />;
+}
+
+function ApiCrewsPlaceholder() {
+  return (
+    <FeatureGate flag="crews">
+      <PageHeader title="小队空间" description="与目标一致的同伴组成小队，围绕共同截止日完成挑战并互相给结构化反馈。" />
+      <Card className="flex min-h-[280px] flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+        <p className="text-base font-semibold text-ink">小队功能未实现（P2）</p>
+        <p className="max-w-md text-sm text-ink-2">
+          本轮 api 模式暂不开放小队。请先使用学习路径、真实资料、情境练习与复习来推进当前主题；小队将在后续阶段按学习路径与目标进行绑定。
+        </p>
+        <Badge tone="neutral">占位说明</Badge>
+      </Card>
+    </FeatureGate>
+  );
+}
+
+function DemoCrewsPage() {
   const demoState = useAppStore((s) => s.demoState);
 
   return (

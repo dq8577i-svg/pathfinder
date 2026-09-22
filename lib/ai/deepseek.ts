@@ -125,7 +125,7 @@ ${JSON.stringify(req.existingNodeTitles)}
     const historyJson = req.history.map((m) => `${m.role === "assistant" ? "老师" : "学生"}：${m.content}`).join("\n");
     const user = `概念：${req.node.title}\n能力目标：${req.node.capabilityGoal || "无"}\n\n对话记录：\n${historyJson}\n\n请输出评价 JSON。`;
     const raw = await this.complete(system, [{ role: "user", content: user }], 1000, 0.2);
-    const parsed = evaluatePracticeSchema.parse(JSON.parse(raw));
+    const parsed = evaluatePracticeSchema.parse(normalizeEvaluation(JSON.parse(raw)));
     return {
       ...parsed,
       confidenceNotice: `基于本次 ${req.evidenceRounds} 轮讲解与节点资料给出；为学习建议，不是能力认证。`,
@@ -271,4 +271,52 @@ function normalizePlanList(obj: unknown): unknown {
   }
 
   return out;
+}
+
+/**
+ * DeepSeek 偶尔把评价分数字段写成 score/rating，或把数字写成字符串。
+ * 只做同义字段归一，不凭空补默认分数；缺失字段仍由 Zod 拒绝并触发明确降级。
+ */
+function normalizeEvaluation(obj: unknown): unknown {
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
+  const out = { ...(obj as Record<string, unknown>) };
+  if (typeof out.dimensions !== "object" || out.dimensions === null || Array.isArray(out.dimensions)) {
+    return out;
+  }
+  const dimensions = { ...(out.dimensions as Record<string, unknown>) };
+  const labels: Record<string, string> = {
+    completeness: "完整性",
+    accuracy: "准确性",
+    clarity: "清晰度",
+  };
+  for (const key of Object.keys(labels)) {
+    const value = dimensions[key];
+    if (typeof value === "number" || typeof value === "string") {
+      const level = Number(value);
+      dimensions[key] = { label: labels[key], level, note: "基于本次讲解内容评估。" };
+      continue;
+    }
+    if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+    const dimension = { ...(value as Record<string, unknown>) };
+    const rawLevel = dimension.level ?? dimension.score ?? dimension.rating ?? findNumericLevel(dimension);
+    if (typeof rawLevel === "string" && rawLevel.trim()) {
+      const numeric = Number(rawLevel.match(/[1-5]/)?.[0]);
+      if (Number.isFinite(numeric)) dimension.level = numeric;
+    } else if (typeof rawLevel === "number") dimension.level = rawLevel;
+    if (typeof dimension.label !== "string" || !dimension.label) dimension.label = labels[key];
+    if (typeof dimension.note !== "string") {
+      const alternative = dimension.reason ?? dimension.comment ?? dimension.explanation;
+      if (typeof alternative === "string") dimension.note = alternative;
+    }
+    dimensions[key] = dimension;
+  }
+  out.dimensions = dimensions;
+  return out;
+}
+
+function findNumericLevel(dimension: Record<string, unknown>): number | string | undefined {
+  return Object.values(dimension).find((value) => {
+    if (typeof value === "number") return Number.isInteger(value) && value >= 1 && value <= 5;
+    return typeof value === "string" && /^\s*[1-5](?:\s*\/\s*5)?\s*$/.test(value);
+  }) as number | string | undefined;
 }

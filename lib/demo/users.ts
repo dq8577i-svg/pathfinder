@@ -94,7 +94,7 @@ export const USER_PROFILES: Record<Role, UserProfile> = {
   },
 };
 
-export const ALL_ROLES: Role[] = [
+export const ALL_ROLES: Exclude<Role, "guest">[] = [
   "new_learner",
   "learner",
   "practice_learner",

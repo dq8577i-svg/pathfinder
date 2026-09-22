@@ -6,7 +6,15 @@
 const BASE = "http://localhost:3000/api/v1";
 let passed = 0, failed = 0;
 const failures = [];
-const check = (n, c, e = "") => { c ? passed++ : (failed++, failures.push(n), console.log("  ✗", n, e)); };
+const check = (n, c, e = "") => {
+  if (c) {
+    passed++;
+  } else {
+    failed++;
+    failures.push(n);
+    console.log("  ✗", n, e);
+  }
+};
 
 let jar = "";
 async function req(method, path, body) {
@@ -34,12 +42,27 @@ check("preview rationale.skills 非空数组", Array.isArray(r.json?.data?.previ
 check("preview rationale.weeks 非空数组", Array.isArray(r.json?.data?.preview?.rationale?.weeks) && r.json.data.preview.rationale.weeks.length > 0);
 check("preview 节点数 = skills 数", r.json?.data?.preview?.nodes?.length === r.json?.data?.preview?.rationale?.skills?.length);
 check("preview rationale.providerLabel 非空", typeof r.json?.data?.preview?.rationale?.providerLabel === "string" && r.json.data.preview.rationale.providerLabel.length > 0);
+check("preview 使用真实 Tavily", r.json?.data?.preview?.rationale?.searchProviderLabel === "Tavily 实时检索");
+check("preview 包含 Agent 查询词", Array.isArray(r.json?.data?.preview?.rationale?.searchQueries) && r.json.data.preview.rationale.searchQueries.length > 0);
+check("preview 确认前已有候选资料", r.json?.data?.preview?.nodes?.some((node) => node.resources?.length > 0));
+check("preview 包含证据覆盖摘要", typeof r.json?.data?.preview?.rationale?.evidenceCoverageSummary === "string" && r.json.data.preview.rationale.evidenceCoverageSummary.length > 0);
 console.log("     preview providerLabel:", r.json?.data?.preview?.rationale?.providerLabel);
+const previewId = r.json?.data?.preview?.id;
+const previewTitles = r.json?.data?.preview?.nodes?.map((node) => node.title) ?? [];
 
-r = await req("POST", "/paths/confirm", goal);
+r = await req("POST", "/paths/confirm", { goal, previewId });
 check("confirm 200", r.status === 200, `got ${r.status}`);
 check("confirm rationale.providerLabel 非空", r.json?.data?.path?.rationale?.providerLabel?.length > 0);
 check("confirm 节点数 = skills 数", r.json?.data?.path?.nodes?.length === r.json?.data?.path?.rationale?.skills?.length);
+check("confirm 与用户看到的预览节点一致", JSON.stringify(r.json?.data?.path?.nodes?.map((node) => node.title) ?? []) === JSON.stringify(previewTitles));
+const pathId = r.json?.data?.path?.id;
+
+r = await req("POST", `/paths/${pathId}/resources/refresh`);
+check("confirm 后真实资料持久化 200", r.status === 200, `got ${r.status}`);
+check("资源 Provider 为 Tavily", r.json?.data?.provider === "tavily");
+r = await req("GET", `/paths/${pathId}`);
+check("持久化路径包含真实资料", r.json?.data?.path?.nodes?.some((node) => node.resources?.length > 0));
+check("持久化路径包含证据可信度", ["high", "medium", "low"].includes(r.json?.data?.path?.rationale?.evidenceConfidence));
 
 // ---- 练习 ----
 r = await req("POST", "/practice/sessions", { nodeId: "need-signal" });

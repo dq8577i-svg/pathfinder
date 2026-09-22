@@ -141,7 +141,7 @@ export function PortfolioApiView() {
               id="pf-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：Python 数据分析练习项目"
+              placeholder="例如：AI 产品需求洞察与 PRD 实战"
               className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-2 focus:outline-offset-1 focus:outline-ink-2"
             />
           </div>

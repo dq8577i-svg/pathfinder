@@ -34,7 +34,8 @@ export function useAiChat() {
         });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.data) {
-          throw new Error(json?.error === "ai_unavailable" ? "ai_unavailable" : "request_failed");
+          const errorCode = typeof json?.error === "string" ? json.error : json?.error?.code;
+          throw new Error(errorCode === "AI_UNAVAILABLE" || errorCode === "ai_unavailable" ? "ai_unavailable" : "request_failed");
         }
         return json.data as AiChatResult;
       } catch (e) {

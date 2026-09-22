@@ -51,7 +51,10 @@ function nextEase(card: MemoryCard, rating: ReviewRating): number {
 }
 
 export default function ReviewPage() {
-  if (isApiMode) return <ReviewApiView />;
+  return isApiMode ? <ReviewApiView /> : <DemoReviewPage />;
+}
+
+function DemoReviewPage() {
   const { data: topic, ready } = useDemoTopic();
   const demoState = useAppStore((s) => s.demoState);
   const pushToast = useAppStore((s) => s.pushToast);
@@ -68,9 +71,12 @@ export default function ReviewPage() {
 
   useEffect(() => {
     if (!ready) return;
-    setQueue(cards);
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
+    const setupTimer = window.setTimeout(() => setQueue(cards), 0);
+    const loadingTimer = window.setTimeout(() => setLoading(false), 500);
+    return () => {
+      window.clearTimeout(setupTimer);
+      window.clearTimeout(loadingTimer);
+    };
   }, [ready, cards]);
 
   if (!ready) return <LoadingState label="正在加载复习中心…" />;
@@ -219,8 +225,8 @@ function ReviewSession({
 function CompleteState({ lastNodeId, total }: { lastNodeId: string | null; total: number }) {
   return (
     <Card className="flex min-h-[320px] flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-      <div className="text-3xl text-ink-3" aria-hidden="true">
-        ✓
+      <div className="rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-medium text-success">
+        今日任务完成
       </div>
       <p className="text-base font-medium text-ink">今日复习完成</p>
       <p className="max-w-sm text-sm text-ink-2">

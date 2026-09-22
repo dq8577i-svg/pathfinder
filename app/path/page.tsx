@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { PageHeader, StateBanner } from "@/components/shell";
 import { RequireAuth } from "@/components/guards";
 import { useAppStore } from "@/lib/store";
-import { Card, Badge, ButtonLink, ProgressBar, SectionHeading } from "@/components/ui";
+import { Card, Badge, ButtonLink, ProgressBar } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
 import { EmptyState, LoadingState, DemoTag, AiNote } from "@/components/states";
 import { pathFor, PATH_PM } from "@/lib/demo";
@@ -90,13 +90,16 @@ function PathContent() {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    try {
-      setOnboarded(!!window.localStorage.getItem("pf-onboarded"));
-    } catch {
-      setOnboarded(false);
-    }
-    setLocalCompleted(readCompleted());
-    setChecked(true);
+    const timer = window.setTimeout(() => {
+      try {
+        setOnboarded(!!window.localStorage.getItem("pf-onboarded"));
+      } catch {
+        setOnboarded(false);
+      }
+      setLocalCompleted(readCompleted());
+      setChecked(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const isNewLearner = role === "new_learner";
@@ -130,7 +133,7 @@ function PathContent() {
       );
     }
     return [];
-  }, [needsDiagnosis, baseNodes, isNewLearner, onboarded, topic, isApiMode]);
+  }, [needsDiagnosis, baseNodes, isNewLearner, onboarded, topic]);
 
   if (isApiMode ? apiLoading : !checked || !ready) return <LoadingState label="正在加载路径…" />;
 
@@ -143,9 +146,8 @@ function PathContent() {
           description="先完成目标诊断，生成你的知识树。"
         />
         <EmptyState
-          icon="🗺️"
           title="还没有学习路径"
-          description="先告诉我你想学什么，AI 会围绕你的主题规划学习路径。"
+          description="先输入想学的主题并完成目标诊断，AI 会按你的基础与时间生成知识节点。"
           action={{ label: "去规划", href: "/onboarding" }}
         />
       </div>

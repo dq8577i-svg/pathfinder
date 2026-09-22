@@ -42,7 +42,10 @@ function sessionMeta(id: string): { label: string; tone: BadgeTone; inProgress: 
 }
 
 export default function LabsPage() {
-  if (isApiMode) return <LabsApiView />;
+  return isApiMode ? <LabsApiView /> : <DemoLabsPage />;
+}
+
+function DemoLabsPage() {
   const { data: topic, ready } = useDemoTopic();
   if (!ready) return <LoadingState label="正在加载情境练习场…" />;
   const scenarios = topic ? topic.scenarios : SCENARIOS;

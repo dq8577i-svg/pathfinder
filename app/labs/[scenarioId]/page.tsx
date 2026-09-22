@@ -83,7 +83,10 @@ function buildInitial(scenario: Scenario): SessionState {
 }
 
 export default function ScenarioPage() {
-  if (isApiMode) return <ScenarioApiView />;
+  return isApiMode ? <ScenarioApiView /> : <DemoScenarioPage />;
+}
+
+function DemoScenarioPage() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
   const scenario = useMemo(() => SCENARIOS.find((s) => s.id === scenarioId) ?? null, [scenarioId]);
 
@@ -427,7 +430,7 @@ function ReportCard({ report, rubricScores }: { report: ScenarioReport; rubricSc
       <ul className="mt-2 space-y-2">
         {report.achieved.map((a) => (
           <li key={a.claim} className="flex items-start gap-2 text-sm text-ink">
-            <span className="mt-0.5 shrink-0 text-success">✓</span>
+            <span className="mt-0.5 shrink-0 text-xs font-medium text-success">达成</span>
             <span>{a.claim}</span>
           </li>
         ))}

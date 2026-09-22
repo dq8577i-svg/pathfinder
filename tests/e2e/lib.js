@@ -37,9 +37,13 @@ class Chain {
     this.page.on("pageerror", (err) =>
       this.pageErrors.push({ text: String(err.message || err).slice(0, 400), url: this.page.url() }),
     );
-    this.page.on("requestfailed", (req) =>
-      this.requestFails.push({ url: req.url(), err: req.failure()?.errorText }),
-    );
+    this.page.on("requestfailed", (req) => {
+      const url = req.url();
+      const errorText = req.failure()?.errorText;
+      // Next.js 会在快速导航时主动取消尚未使用的 RSC 预取；这不是用户可见的网络故障。
+      if (errorText === "net::ERR_ABORTED" && url.includes("_rsc=")) return;
+      this.requestFails.push({ url, err: errorText });
+    });
     this.page.on("response", (res) => {
       if (res.status() >= 400) this.httpErrors.push({ url: res.url(), status: res.status() });
     });
@@ -200,13 +204,17 @@ class Chain {
 
   /** Scan DOM + loaded scripts for sk- tokens. */
   async scanTokens() {
+    // 避免把 Next.js 源码路径 `task-async-*` 中的子串 `sk-async` 误报为密钥。
+    // 真实供应商密钥必须以非字母数字边界开头，且主体至少 16 字符。
+    const tokenPattern = /(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}/;
     const found = [];
     const domHits = await this.page.evaluate(() => {
       const hits = [];
+      const pattern = /(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}/;
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       let n;
       while ((n = walker.nextNode())) {
-        if (/sk-[A-Za-z0-9_\-]{8,}/.test(n.textContent || "")) hits.push(n.textContent.trim().slice(0, 60));
+        if (pattern.test(n.textContent || "")) hits.push(n.textContent.trim().slice(0, 60));
       }
       return hits;
     });
@@ -221,7 +229,7 @@ class Chain {
       try {
         const res = await fetch(src);
         const text = await res.text();
-        const idx = text.search(/sk-[A-Za-z0-9_\-]{12,}/);
+        const idx = text.search(tokenPattern);
         if (idx >= 0) found.push({ where: src, sample: text.slice(idx - 20, idx + 40) });
       } catch {}
     }

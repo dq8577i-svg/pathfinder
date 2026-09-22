@@ -5,6 +5,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+import { X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
 import { useAppStore } from "@/lib/store";
@@ -82,7 +83,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
       <button aria-label="关闭" className="pf-backdrop absolute inset-0 bg-black/40" onClick={onClose} tabIndex={-1} />
       <FocusTrap active>
-        <div className={cn("relative w-full rounded-lg bg-surface p-5 shadow-xl", width)}>
+        <div className={cn("pf-glass relative w-full rounded-lg p-5 shadow-pop", width)}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold text-ink">{title}</h2>
@@ -94,7 +95,7 @@ export function Modal({
               aria-label="关闭对话框"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-ink-2"
             >
-              ×
+              <X size={18} />
             </button>
           </div>
           {children ? <div className="mt-4">{children}</div> : null}
@@ -139,7 +140,7 @@ export function Drawer({
       <button aria-label="关闭抽屉" className="pf-backdrop absolute inset-0 bg-black/40" onClick={onClose} tabIndex={-1} />
       <div
         className={cn(
-          "absolute inset-y-0 flex flex-col bg-surface shadow-xl",
+          "pf-glass absolute inset-y-0 flex flex-col shadow-pop",
           side === "right" ? "right-0" : "left-0",
           width,
         )}
@@ -152,7 +153,7 @@ export function Drawer({
             aria-label="关闭抽屉"
             className="flex h-11 w-11 items-center justify-center rounded-md text-ink-3 hover:bg-subtle hover:text-ink"
           >
-            ×
+            <X size={18} />
           </button>
         </div>
         <FocusTrap active>
@@ -223,7 +224,13 @@ export function ToastViewport() {
             t.type === "info" && "border-line-strong text-ink-2",
           )}
         >
-          <span className="shrink-0">{t.type === "error" ? "×" : t.type === "warning" ? "!" : "✓"}</span>
+          <span className="shrink-0" aria-hidden="true">
+            {t.type === "error" ? "×" : t.type === "warning" ? "!" : (
+              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                <path d="m4.5 10 3.25 3.25L15.5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </span>
           <span className="flex-1 text-ink">{t.message}</span>
           <button
             type="button"

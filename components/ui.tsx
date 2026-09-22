@@ -15,13 +15,13 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "dang
 export type ButtonSize = "sm" | "md";
 
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors " +
+  "pf-interactive inline-flex items-center justify-center gap-2 rounded-md font-medium " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink-2 " +
   "disabled:opacity-50 disabled:cursor-not-allowed select-none";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-action text-white hover:bg-action-hover",
-  secondary: "bg-surface text-ink border border-line hover:bg-subtle",
+  primary: "pf-button-primary",
+  secondary: "bg-surface/80 text-ink border border-line hover:bg-subtle shadow-sm",
   ghost: "bg-transparent text-ink-2 hover:text-ink hover:bg-subtle",
   danger: "bg-danger text-white hover:bg-danger/90",
   dangerGhost: "bg-transparent text-danger border border-danger/40 hover:bg-danger-bg",
@@ -102,7 +102,7 @@ export function Spinner({ className }: { className?: string }) {
 
 export function Card({ className, children, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("bg-surface border border-line rounded-lg", className)} {...rest}>
+    <div className={cn("pf-card bg-surface border border-line rounded-lg", className)} {...rest}>
       {children}
     </div>
   );
@@ -117,7 +117,7 @@ const BADGE_TONES: Record<BadgeTone, string> = {
   warning: "bg-warning-bg text-warning border-warning/20",
   danger: "bg-danger-bg text-danger border-danger/20",
   neutral: "bg-subtle text-ink-2 border-line",
-  info: "bg-subtle text-ink border-line-strong",
+  info: "bg-[var(--pf-active-soft)] text-action border-action/25",
 };
 
 export function Badge({ tone = "neutral", className, children }: { tone?: BadgeTone; className?: string; children: React.ReactNode }) {
@@ -263,7 +263,7 @@ export function ProgressBar({
         aria-label={label ?? "进度"}
         className="h-2 flex-1 overflow-hidden rounded-full bg-subtle"
       >
-        <div className="h-full rounded-full bg-ink transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-full rounded-full bg-action transition-all duration-500" style={{ width: `${pct}%` }} />
       </div>
       {label ? <span className="text-xs text-ink-2 whitespace-nowrap">{label}</span> : null}
     </div>

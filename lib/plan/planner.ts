@@ -11,6 +11,7 @@ import type { LearningGoalInput } from "./goal";
 import { goalProfileOf } from "./goal";
 import { getAiProvider } from "@/lib/ai";
 import { MockProvider } from "@/lib/ai/mock";
+import { searchProviderLabel } from "@/lib/search";
 
 /** 兜底 Mock（真实 AI 失败时使用；标注不伪装成 DeepSeek） */
 const mockProvider = new MockProvider();
@@ -36,6 +37,40 @@ export async function generatePlan(
 ): Promise<GeneratedPlan> {
   const goalProfile = goalProfileOf(goal);
   const plan = await runPlanner({ goal, existingNodeTitles });
+  const activeSearchProvider = searchProviderLabel();
+  const isPrimaryProductManagerPath = /产品经理/i.test(goal.topic.trim());
+
+  // 产品经理是已策展的推荐模板，不是产品边界。用户选择该主题时复用
+  // 19 节点教材；其他主题由 Provider 根据用户输入自由生成。
+  if (isPrimaryProductManagerPath && existingNodeTitles.length >= 19) {
+    const curatedTitles = existingNodeTitles.slice(0, 19);
+    const weekCount = Math.max(1, Math.min(goal.deadlineWeeks, curatedTitles.length));
+    const weeks: GeneratedWeek[] = Array.from({ length: weekCount }, (_, index) => ({
+      week: index + 1,
+      skills: [],
+    }));
+    curatedTitles.forEach((title, index) => {
+      const weekIndex = Math.min(
+        weekCount - 1,
+        Math.floor((index * weekCount) / curatedTitles.length),
+      );
+      weeks[weekIndex].skills.push(title);
+    });
+    return {
+      goalProfile,
+      title: "AI 产品经理基础能力路径",
+      rationale:
+        `以经审核的 19 个产品经理教材节点为能力骨架，根据“${goal.currentLevel}”基础、` +
+        `每周 ${goal.weeklyHours} 小时和 ${goal.deadlineWeeks} 周期限编排节奏；AI 不删除核心章节。`,
+      skills: curatedTitles.map((name) => ({
+        name,
+        reason: `完成产品经理教材节点「${name}」并形成可验证的学习证据`,
+      })),
+      weeks,
+      providerLabel: plan.providerLabel,
+      searchProviderLabel: activeSearchProvider,
+    };
+  }
   return {
     goalProfile,
     title: plan.title,
@@ -43,7 +78,7 @@ export async function generatePlan(
     skills: plan.skills,
     weeks: plan.weeks,
     providerLabel: plan.providerLabel,
-    searchProviderLabel: plan.searchProviderLabel,
+    searchProviderLabel: activeSearchProvider,
   };
 }
 

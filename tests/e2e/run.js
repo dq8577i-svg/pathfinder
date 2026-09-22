@@ -49,7 +49,7 @@ async function runChain(name, fn) {
 async function chain1(c) {
   await c.goto("/");
   await c.waitForHydration();
-  await c.waitForText("把产品经理教材");
+  await c.waitForText("你想学什么");
   assert(c, await c.hasText("学习闭环"), "L1 落地页含学习闭环");
   assert(c, await c.hasText("开始学习"), "L1 落地页 CTA 开始学习");
   assert(c, await c.hasText("演示数据"), "L1 落地页演示数据标识");
@@ -65,8 +65,9 @@ async function chain1(c) {
   await c.waitForText("创建你的学习路径", 20000);
   assert(c, c.url().includes("/onboarding"), "L1 注册后进入 /onboarding");
 
-  // 4 步诊断（通用主题：主题→基础→时间→期限）
+  // 4 步诊断（用户主题→基础→时间→期限）
   await c.type("#topic", "Python 数据分析");
+  await c.type("#goal", "从零完成一份可复现的数据分析报告");
   await c.clickText("下一步");
   await c.waitForText("你目前的水平");
   await c.clickText("零基础");
@@ -75,31 +76,48 @@ async function chain1(c) {
   await c.clickText("5 小时");
   await c.clickText("下一步");
   await c.waitForText("你希望在多长时间内完成");
-  await c.clickText("6 周");
+  await c.clickText("12 周");
   await c.clickText("生成路径方案");
 
-  // AI 编排阶段（通用阶段文案）
+  // AI 编排阶段（围绕用户主题）
   await c.waitForText("AI 编排中");
   assert(c, await c.hasText("理解你的学习目标"), "L1 AI 编排阶段-理解目标");
-  assert(c, await c.hasText("编排技能与周计划"), "L1 AI 编排阶段-编排技能");
+  assert(c, await c.hasText("生成个性化学习路径"), "L1 AI 编排阶段-生成路径");
   await c.waitForText("你的建议学习路径", 20000);
-  assert(c, await c.hasText("Python"), "L1 结果标题围绕用户主题");
+  assert(c, await c.hasText("Python 数据分析"), "L1 结果围绕用户主题");
+  assert(c, await c.hasText("3 个技能节点"), "L1 通用主题生成技能节点");
   assert(c, await c.hasText("按周计划"), "L1 结果含按周计划");
   assert(c, await c.hasText("技能拆解"), "L1 结果含技能拆解");
   assert(c, await c.hasText("第 1 周"), "L1 结果含第 1 周");
-  assert(c, await c.hasText("AI 整理（演示）"), "L1 结果含 AI 整理（演示）标签");
   assert(c, await c.hasText("演示数据"), "L1 结果含演示数据标识");
 
   await c.clickText("确认此路径");
-  const toast = await c.waitToast("学习路径已生成");
+  const toast = await c.waitToast("新学习路径已创建");
   assert(c, toast, "L1 确认路径 toast");
-  await c.waitForText("你的学习路径", 15000);
-  assert(c, c.url().includes("/home"), "L1 确认后返回 /home");
-  assert(c, await c.hasText("已生成"), "L1 新学习者显示已生成路径卡片");
-  assert(c, await c.hasText("进入路径"), "L1 路径卡片含进入路径");
-  assert(c, await c.hasText("Python"), "L1 首页卡片含用户主题");
-  const noEmpty = !(await c.hasText("还没有学习路径"));
-  assert(c, noEmpty, "L1 不显示空态");
+  await c.page.waitForFunction(() => location.pathname === "/paths", { timeout: 15000, polling: 150 });
+  await c.waitForText("Python 数据分析学习路径", 15000);
+  assert(c, await c.hasText("新建路径"), "L1 路径列表提供多路径入口");
+
+  // 从多路径入口创建第二条独立主题路径
+  await c.clickText("新建路径");
+  await c.waitForText("你想学什么", 15000);
+  await c.type("#topic", "摄影");
+  await c.type("#goal", "三个月后能够独立拍摄一组人像");
+  await c.clickText("下一步");
+  await c.clickText("零基础");
+  await c.clickText("下一步");
+  await c.clickText("5 小时");
+  await c.clickText("下一步");
+  await c.clickText("12 周");
+  await c.clickText("生成路径方案");
+  await c.waitForText("确认此路径", 20000);
+  await c.clickText("确认此路径");
+  await c.waitForText("Python 数据分析学习路径", 15000);
+  assert(c, await c.hasText("摄影学习路径"), "L1 第二条路径创建成功且未覆盖第一条");
+  await c.clickText("设为当前路径");
+  await c.goto("/home");
+  await c.waitForText("Python 数据分析学习路径", 15000);
+  assert(c, await c.hasText("创建另一条路径"), "L1 首页可继续创建路径");
 
   // 期间无 500 / 空白 / 404
   const bad = c.httpErrors.filter((e) => e.status >= 500 || e.status === 404);
@@ -249,7 +267,7 @@ async function chain3(c) {
 
   // 恢复 normal（通过演示控制台）
   await c.click('[aria-label="演示控制台"]');
-  await c.waitForText("演示状态");
+  await c.waitForText("当前离线演示");
   await c.clickText("正常");
   await c.sleep(300);
   await c.press("Escape");

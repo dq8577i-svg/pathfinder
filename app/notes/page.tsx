@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAppStore } from "@/lib/store";
-import { NOTES, resolvePracticeSession, PATH_PM, nodeById } from "@/lib/demo";
+import { NOTES, PATH_PM, nodeById } from "@/lib/demo";
 import { mockFetch, relativeTime } from "@/lib/utils";
 import { isApiMode } from "@/lib/data-source";
 import { listNotes, updateNote } from "@/lib/api/notes";
@@ -100,8 +100,11 @@ function NotesContent() {
         cancelled = true;
       };
     }
-    setNotes(loadAllNotes(NOTES));
-    setLoaded(true);
+    const timer = window.setTimeout(() => {
+      setNotes(loadAllNotes(NOTES));
+      setLoaded(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [pushToast]);
 
   // api 模式：为笔记的来源节点解析标题（来自当前用户真实路径），不依赖演示数据
@@ -135,7 +138,6 @@ function NotesContent() {
       focusHandled.current = true;
       openNote(n);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, notes]);
 
   const activeNote = useMemo(() => notes.find((n) => n.id === activeId) ?? null, [notes, activeId]);
@@ -324,11 +326,21 @@ function NotesContent() {
 
 /** 相对时间仅在客户端水合后计算，避免 SSR 与客户端首帧因 Date.now() 差异导致水合不匹配 */
 function RelativeTime({ iso }: { iso: string }) {
-  const [label, setLabel] = useState<string | null>(null);
-  useEffect(() => {
-    setLabel(relativeTime(iso));
-  }, [iso]);
+  const mounted = useSyncExternalStore(subscribeToNothing, clientSnapshot, serverSnapshot);
+  const label = mounted ? relativeTime(iso) : null;
   return <>{label ? ` · 更新于 ${label}` : ""}</>;
+}
+
+function subscribeToNothing() {
+  return () => undefined;
+}
+
+function clientSnapshot() {
+  return true;
+}
+
+function serverSnapshot() {
+  return false;
 }
 
 function NotesHeader({ count }: { count: number }) {

@@ -8,7 +8,13 @@ import { AiNote, EmptyState, LoadingState } from "@/components/states";
 import { PathSwitcher } from "@/components/path-switcher";
 import { useAppStore } from "@/lib/store";
 import { useAsync, useCurrentPathId } from "@/lib/api/hooks";
-import { createLibraryItem, deleteLibraryItem, listLibraryItems } from "@/lib/api/library";
+import {
+  createLibraryItem,
+  deleteLibraryItem,
+  getLibraryDownloadUrl,
+  listLibraryItems,
+  uploadLibraryFile,
+} from "@/lib/api/library";
 import type { LibraryItemDto, LibrarySourceType } from "@/lib/api/library";
 import { relativeTime } from "@/lib/utils";
 
@@ -36,8 +42,7 @@ type FormState = {
   sourceName: string;
   tags: string;
   memo: string;
-  objectKey: string;
-  size: string;
+  file: File | null;
 };
 const EMPTY_FORM: FormState = {
   kind: "link",
@@ -46,8 +51,7 @@ const EMPTY_FORM: FormState = {
   sourceName: "",
   tags: "",
   memo: "",
-  objectKey: "",
-  size: "",
+  file: null,
 };
 
 type TabValue = "all" | LibrarySourceType;
@@ -67,6 +71,7 @@ export function LibraryApiView() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const list = items ?? [];
   const counts = {
@@ -93,23 +98,35 @@ export function LibraryApiView() {
       pushToast("链接类型需要填写 URL", "error");
       return;
     }
+    if (form.kind === "upload" && !form.file) {
+      pushToast("请选择要上传的文件", "error");
+      return;
+    }
     setSaving(true);
     try {
-      const item = await createLibraryItem({
-        pathId,
-        kind: form.kind,
-        title: form.title.trim(),
-        url: form.kind === "link" && form.url.trim() ? form.url.trim() : null,
-        sourceName: form.sourceName.trim(),
-        tags: form.tags
-          .split(/[,，]/)
-          .map((t) => t.trim())
-          .filter(Boolean)
-          .slice(0, 10),
-        memo: form.memo.trim(),
-        objectKey: form.kind === "upload" && form.objectKey.trim() ? form.objectKey.trim() : null,
-        size: form.kind === "upload" && form.size.trim() ? form.size.trim() : null,
-      });
+      const tags = form.tags
+        .split(/[,，]/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .slice(0, 10);
+      const item = form.kind === "upload" && form.file
+        ? await uploadLibraryFile({
+            pathId,
+            file: form.file,
+            title: form.title.trim(),
+            sourceName: form.sourceName.trim(),
+            tags,
+            memo: form.memo.trim(),
+          })
+        : await createLibraryItem({
+            pathId,
+            kind: form.kind,
+            title: form.title.trim(),
+            url: form.kind === "link" && form.url.trim() ? form.url.trim() : null,
+            sourceName: form.sourceName.trim(),
+            tags,
+            memo: form.memo.trim(),
+          });
       pushToast(`已保存「${item.title}」到个人资料库`, "success");
       setModalOpen(false);
       setForm(EMPTY_FORM);
@@ -135,6 +152,27 @@ export function LibraryApiView() {
     }
   }
 
+  async function handleDownload(id: string) {
+    if (downloadingId) return;
+    // 在用户点击的同步事件里先打开空白页，避免异步获取短时地址后被浏览器拦截。
+    const targetWindow = window.open("", "_blank");
+    setDownloadingId(id);
+    try {
+      const url = await getLibraryDownloadUrl(id);
+      if (targetWindow) {
+        targetWindow.opener = null;
+        targetWindow.location.replace(url);
+      } else {
+        window.location.assign(url);
+      }
+    } catch (e) {
+      targetWindow?.close();
+      pushToast(e instanceof Error ? e.message : "暂时无法获取下载地址", "error");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   if (!pathId) {
     return (
       <EmptyState
@@ -150,8 +188,8 @@ export function LibraryApiView() {
     <>
       <PageHeader
         title="个人资料库"
-        description="集中保存可再次使用的链接、文件元数据与个人摘记，以及从当前学习路径收藏的真实资料。仅自己可见。"
-        meta={<AiNote>资料均归属当前用户与当前学习路径；切换主题即切换资料库。</AiNote>}
+        description="集中保存可再次使用的链接、真实文件与个人摘记，以及从当前学习路径收藏的可信资料。仅自己可见。"
+        meta={<AiNote>资料归属当前用户和所选学习路径；文件经服务端进入对象存储。</AiNote>}
         actions={<Button onClick={openModal}>新增资料</Button>}
       />
 
@@ -187,7 +225,9 @@ export function LibraryApiView() {
             key={item.id}
             item={item}
             deleting={deletingId === item.id}
+            downloading={downloadingId === item.id}
             onDelete={() => handleDelete(item.id, item.title)}
+            onDownload={() => handleDownload(item.id)}
           />
         ))}
         {visible.length === 0 ? (
@@ -204,7 +244,7 @@ export function LibraryApiView() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title="新增资料"
-        description="仅保存你有权保存和用于学习的资料；本轮不真正上传文件，仅保存元数据。"
+        description="链接和笔记写入数据库；文件经服务端校验后保存到对象存储，下载时使用短时授权地址。"
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
@@ -248,24 +288,17 @@ export function LibraryApiView() {
             </Field>
           ) : null}
           {form.kind === "upload" ? (
-            <>
-              <Field label="文件名 / 对象键" htmlFor="lib-ok">
-                <Input
-                  id="lib-ok"
-                  value={form.objectKey}
-                  onChange={(e) => setForm({ ...form, objectKey: e.target.value })}
-                  placeholder="例如：生物笔记/第一章.pdf"
-                />
-              </Field>
-              <Field label="大小" htmlFor="lib-size">
-                <Input
-                  id="lib-size"
-                  value={form.size}
-                  onChange={(e) => setForm({ ...form, size: e.target.value })}
-                  placeholder="例如：128 KB"
-                />
-              </Field>
-            </>
+            <Field label="选择文件" htmlFor="lib-file" hint="支持 PDF、Word、文本和常见图片；单个文件大小以服务端限制为准。">
+              <Input
+                id="lib-file"
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,application/pdf,text/plain,image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setForm({ ...form, file, title: form.title || file?.name || "" });
+                }}
+              />
+            </Field>
           ) : null}
           <Field label="来源" htmlFor="lib-source">
             <Input
@@ -280,7 +313,7 @@ export function LibraryApiView() {
               id="lib-tags"
               value={form.tags}
               onChange={(e) => setForm({ ...form, tags: e.target.value })}
-              placeholder="细胞分裂, 酶"
+              placeholder="需求分析, PRD, 原型设计"
             />
           </Field>
           <Field label="摘记" htmlFor="lib-memo" hint="仅你自己可见">
@@ -301,11 +334,15 @@ export function LibraryApiView() {
 function LibraryRow({
   item,
   deleting,
+  downloading,
   onDelete,
+  onDownload,
 }: {
   item: LibraryItemDto;
   deleting: boolean;
+  downloading: boolean;
   onDelete: () => void;
+  onDownload: () => void;
 }) {
   return (
     <Card className="p-5">
@@ -360,6 +397,10 @@ function LibraryRow({
           <ButtonLink href={item.url} variant="secondary" size="sm" external ariaLabel={`打开 ${item.title}`}>
             打开 ↗
           </ButtonLink>
+        ) : item.sourceType === "upload" && item.objectKey ? (
+          <Button size="sm" variant="secondary" loading={downloading} onClick={onDownload}>
+            下载文件
+          </Button>
         ) : null}
       </div>
     </Card>

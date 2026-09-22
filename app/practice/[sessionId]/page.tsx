@@ -84,22 +84,22 @@ export default function PracticeConversationPage() {
   // 会话切换 / api 会话加载完成时，重置为对应会话（并从 localStorage 恢复草稿）
   useEffect(() => {
     if (!seed) return;
-    setMessages(seed.messages);
-    setCurrentRound(seed.currentRound);
-    setTotalRounds(seed.totalRounds);
-    setSyncState(seed.syncState);
-    setInput(seed.draft ?? "");
-    setDraftLabel(null);
-    setAiThinking(false);
-    setSending(false);
-    setSyncInProgress(false);
-    setErrorNotice(null);
-    sendingRef.current = false;
-    if (typeof window !== "undefined") {
+    const timer = window.setTimeout(() => {
+      setMessages(seed.messages);
+      setCurrentRound(seed.currentRound);
+      setTotalRounds(seed.totalRounds);
+      setSyncState(seed.syncState);
+      setInput(seed.draft ?? "");
+      setDraftLabel(null);
+      setAiThinking(false);
+      setSending(false);
+      setSyncInProgress(false);
+      setErrorNotice(null);
+      sendingRef.current = false;
       const saved = window.localStorage.getItem(`pf-draft-${sessionId}`);
       if (saved != null) setInput(saved);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [sessionId, seed]);
 
   // 卸载时清理防抖定时器
@@ -365,8 +365,10 @@ export default function PracticeConversationPage() {
   if (isCompleted) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
-        <div className="text-4xl" aria-hidden="true">
-          ✓
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-success/30 bg-success-bg text-success" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none">
+            <path d="m5 12 4 4L19 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </div>
         <p className="text-base font-medium text-ink">本次练习已完成</p>
         <p className="max-w-sm text-sm text-ink-2">

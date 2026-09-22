@@ -103,7 +103,7 @@ export async function searchUserData(userId: string, query: string): Promise<Sea
     .limit(20);
 
   // 4) 用户路径节点关联的资料（标题/域名/URL；两步查询）
-  let resRows: { nodeId: string; resource: typeof resources.$inferSelect }[] = [];
+  const resRows: { nodeId: string; resource: typeof resources.$inferSelect }[] = [];
   if (userNodeIds.length) {
     const nrRows2 = await db
       .select({ nodeId: nodeResources.nodeId, resourceId: nodeResources.resourceId })

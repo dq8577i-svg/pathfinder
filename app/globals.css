@@ -1,35 +1,101 @@
 @import "tailwindcss";
 
 @theme {
-  /* Pathfinder 中性极简设计系统 tokens（对应 UIUX 规范） */
-  --color-canvas: #fafafa;
-  --color-surface: #ffffff;
-  --color-subtle: #f4f4f5;
-  --color-ink: #18181b;
-  --color-ink-2: #52525b;
-  --color-ink-3: #a1a1aa;
-  --color-line: #e4e4e7;
-  --color-line-strong: #d4d4d8;
-  --color-action: #18181b;
-  --color-action-hover: #3f3f46;
-  --color-success: #166534;
-  --color-success-bg: #f0fdf4;
-  --color-warning: #a16207;
-  --color-warning-bg: #fffbeb;
-  --color-danger: #b91c1c;
-  --color-danger-bg: #fef2f2;
-  --font-sans: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --radius-card: 12px;
-  --radius-control: 8px;
-  --shadow-pop: 0 12px 32px rgb(24 24 27 / 12%);
+  --color-canvas: var(--pf-canvas);
+  --color-surface: var(--pf-surface);
+  --color-subtle: var(--pf-subtle);
+  --color-ink: var(--pf-ink);
+  --color-ink-2: var(--pf-ink-2);
+  --color-ink-3: var(--pf-ink-3);
+  --color-line: var(--pf-line);
+  --color-line-strong: var(--pf-line-strong);
+  --color-action: var(--pf-action);
+  --color-action-hover: var(--pf-action-hover);
+  --color-success: var(--pf-success);
+  --color-success-bg: var(--pf-success-bg);
+  --color-warning: var(--pf-warning);
+  --color-warning-bg: var(--pf-warning-bg);
+  --color-danger: var(--pf-danger);
+  --color-danger-bg: var(--pf-danger-bg);
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  --radius-card: 8px;
+  --radius-control: 7px;
+  --shadow-pop: var(--pf-shadow-pop);
+}
+
+:root {
+  --pf-canvas: #f3f1ec;
+  --pf-surface: #faf9f6;
+  --pf-surface-raised: rgba(255, 255, 255, 0.78);
+  --pf-subtle: #eceae4;
+  --pf-ink: #171b20;
+  --pf-ink-2: #69727c;
+  --pf-ink-3: #929aa2;
+  --pf-line: #d8d6cf;
+  --pf-line-strong: #c9c7c0;
+  --pf-action: #087f7a;
+  --pf-action-hover: #096c68;
+  --pf-action-ink: #ffffff;
+  --pf-ai: #6656a8;
+  --pf-ai-soft: #ece8f6;
+  --pf-focus: #087f7a;
+  --pf-success: #167269;
+  --pf-success-bg: #def0ec;
+  --pf-warning: #9a651c;
+  --pf-warning-bg: #f7ead4;
+  --pf-danger: #ae3f46;
+  --pf-danger-bg: #f8e5e5;
+  --pf-shadow-card: 0 1px 2px rgb(29 35 40 / 5%), 0 10px 28px rgb(29 35 40 / 7%);
+  --pf-shadow-pop: 0 20px 50px rgb(29 35 40 / 14%);
+  --pf-header: rgba(250, 249, 246, 0.82);
+  --pf-sidebar: rgba(250, 249, 246, 0.7);
+  --pf-grid-line: rgb(23 27 32 / 3.5%);
+  --pf-hover: rgba(8, 127, 122, 0.07);
+  --pf-active-soft: #ddf0ed;
+}
+
+[data-theme="dark"] {
+  --pf-canvas: #0a0d12;
+  --pf-surface: #111720;
+  --pf-surface-raised: rgba(17, 23, 32, 0.88);
+  --pf-subtle: #1a222d;
+  --pf-ink: #f2f5f7;
+  --pf-ink-2: #95a1ae;
+  --pf-ink-3: #65717f;
+  --pf-line: rgba(178, 210, 220, 0.14);
+  --pf-line-strong: rgba(178, 210, 220, 0.24);
+  --pf-action: #55d9d0;
+  --pf-action-hover: #72e6de;
+  --pf-action-ink: #071012;
+  --pf-ai: #9b8cff;
+  --pf-ai-soft: rgba(141, 124, 255, 0.12);
+  --pf-focus: #55d9d0;
+  --pf-success: #66d8ba;
+  --pf-success-bg: rgba(63, 186, 151, 0.13);
+  --pf-warning: #e7b76a;
+  --pf-warning-bg: rgba(213, 145, 52, 0.12);
+  --pf-danger: #ff8d95;
+  --pf-danger-bg: rgba(208, 68, 78, 0.13);
+  --pf-shadow-card: 0 1px 0 rgb(255 255 255 / 2%), 0 18px 50px rgb(0 0 0 / 18%);
+  --pf-shadow-pop: 0 28px 70px rgb(0 0 0 / 48%);
+  --pf-header: rgba(10, 13, 18, 0.82);
+  --pf-sidebar: rgba(11, 15, 21, 0.74);
+  --pf-grid-line: rgb(123 190 195 / 3.5%);
+  --pf-hover: rgba(85, 217, 208, 0.07);
+  --pf-active-soft: rgba(85, 217, 208, 0.1);
 }
 
 /* 元素级重置放入 @layer base：Tailwind 工具类（@layer utilities）必须能覆盖它们，
    否则未分层的 `a{color:inherit}` 会压过 .text-white，导致深色底链接按钮文字不可见。 */
 @layer base {
   html {
-    background: var(--color-canvas);
+    background: var(--pf-canvas);
+    color-scheme: light;
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
   }
 
   body {
@@ -40,6 +106,8 @@
     font-size: 14px;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    transition: background-color 220ms ease, color 180ms ease;
   }
 
   button,
@@ -55,11 +123,12 @@
   }
 
   ::selection {
-    background: var(--color-subtle);
+    color: var(--pf-ink);
+    background: var(--pf-active-soft);
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-ink-2);
+    outline: 2px solid var(--pf-focus);
     outline-offset: 2px;
   }
 }
@@ -85,9 +154,134 @@
 
 /* 卡片 */
 .pf-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
+  background: var(--pf-surface-raised);
+  border: 1px solid var(--pf-line);
   border-radius: var(--radius-card);
+  box-shadow: var(--pf-shadow-card);
+}
+
+.pf-app-canvas {
+  background-color: var(--pf-canvas);
+}
+
+.pf-glass {
+  background: var(--pf-surface-raised);
+  border: 1px solid var(--pf-line);
+  box-shadow: var(--pf-shadow-card);
+}
+
+[data-theme="dark"] .pf-glass {
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  backdrop-filter: blur(18px) saturate(115%);
+}
+
+.pf-interactive {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 220ms ease;
+}
+
+.pf-interactive:hover {
+  transform: translateY(-1px);
+  border-color: var(--pf-line-strong);
+}
+
+.pf-command-surface {
+  background: var(--pf-header);
+  border: 1px solid var(--pf-line);
+  box-shadow: var(--pf-shadow-card);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  backdrop-filter: blur(20px) saturate(120%);
+}
+
+.pf-ai-accent {
+  color: var(--pf-ai);
+  background: var(--pf-ai-soft);
+  border-color: color-mix(in srgb, var(--pf-ai) 38%, transparent);
+}
+
+.pf-current-glow {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pf-action) 55%, transparent), var(--pf-shadow-card);
+}
+
+[data-theme="dark"] .pf-current-glow {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pf-action) 70%, transparent),
+    0 0 28px color-mix(in srgb, var(--pf-action) 12%, transparent),
+    var(--pf-shadow-card);
+}
+
+.pf-primary-motion {
+  position: relative;
+  overflow: hidden;
+}
+
+.pf-button-primary {
+  color: var(--pf-action-ink);
+  background: var(--pf-action);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--pf-action) 16%, transparent);
+}
+
+.pf-button-primary:hover {
+  background: var(--pf-action-hover);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--pf-action) 22%, transparent);
+}
+
+.pf-primary-motion::after {
+  content: "";
+  position: absolute;
+  inset: -20% auto -20% -18%;
+  width: 12%;
+  background: rgb(255 255 255 / 28%);
+  filter: blur(7px);
+  transform: skewX(-18deg);
+  animation: pf-action-sweep 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pf-action-sweep {
+  0%, 72% { left: -18%; opacity: 0; }
+  78% { opacity: 0.7; }
+  96% { left: 116%; opacity: 0.15; }
+  100% { left: 116%; opacity: 0; }
+}
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--pf-line);
+  border-radius: 999px;
+  background: var(--pf-surface-raised);
+}
+
+.theme-switch-button {
+  display: inline-flex;
+  min-width: 44px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--pf-ink-2);
+  transition: color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.theme-switch-button.is-active {
+  color: var(--pf-action);
+  background: var(--pf-active-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pf-action) 18%, transparent);
+}
+
+.theme-switch-compact .theme-switch-button {
+  min-width: 36px;
+  width: 36px;
+  padding: 0;
 }
 
 /* 状态胶囊：颜色永不单独表达状态，必须配文字 */
@@ -144,6 +338,9 @@
   * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+  .pf-primary-motion::after {
+    display: none;
   }
 }
 

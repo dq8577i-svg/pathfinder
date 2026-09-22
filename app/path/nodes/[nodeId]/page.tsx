@@ -117,7 +117,6 @@ function NodeDetail() {
   const pushToast = useAppStore((s) => s.pushToast);
   const { data: topic, ready } = useDemoTopic();
 
-  const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [localCompleted, setLocalCompleted] = useState<string[]>([]);
   const [checked, setChecked] = useState(false);
   const [selected, setSelected] = useState<ResourceEvidence | null>(null);
@@ -129,13 +128,11 @@ function NodeDetail() {
   const [favoritingId, setFavoritingId] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      setOnboarded(!!window.localStorage.getItem("pf-onboarded"));
-    } catch {
-      setOnboarded(false);
-    }
-    setLocalCompleted(readCompleted());
-    setChecked(true);
+    const timer = window.setTimeout(() => {
+      setLocalCompleted(readCompleted());
+      setChecked(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const isNewLearner = role === "new_learner";

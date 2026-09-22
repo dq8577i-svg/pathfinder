@@ -30,7 +30,10 @@ const VISIBILITY_LABEL: Record<string, { text: string; tone: "neutral" | "info" 
 };
 
 export default function PortfolioPage() {
-  if (isApiMode) return <PortfolioApiView />;
+  return isApiMode ? <PortfolioApiView /> : <DemoPortfolioPage />;
+}
+
+function DemoPortfolioPage() {
   const { data: topic, ready } = useDemoTopic();
   const demoState = useAppStore((s) => s.demoState);
   if (!ready) return <LoadingState label="正在加载我的学习资产…" />;

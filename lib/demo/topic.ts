@@ -1,7 +1,8 @@
 /**
  * 知径 Pathfinder — demo 模式主题数据包生成器（P1/P2 全模块主题一致）
  *
- * 用户在学习规划中输入任意主题（如「高中生物」）后，由本文件确定性派生：
+ * 用户可输入任意学习主题；产品经理主题复用已策展教材骨架，其他主题
+ * 使用确定性演示生成器，保持路径及 P1/P2 模块内容一致。
  * 完整 LearningPath + skills / cards / scenarios / library / portfolio / search 全部模块数据。
  * 纯函数、零 DB、零网络，可被 Node（e2e 单元脚本）与浏览器（模块页）共同 import。
  *
@@ -24,6 +25,7 @@ import type {
   SkillDimension,
 } from "@/lib/types";
 import { goalProfileOf, type LearningGoalInput } from "@/lib/plan/goal";
+import { PATH_PM } from "./data";
 
 export interface DemoTopicBundle {
   goal: LearningGoalInput;
@@ -39,6 +41,19 @@ export interface DemoTopicBundle {
 
 const DEMO_PROVIDER_LABEL = "AI 整理（演示）· Mock 编排";
 const DEMO_SEARCH_LABEL = "Search Provider Mock";
+
+function isProductManagerTopic(topic: string): boolean {
+  return /产品经理|product\s*manager|\bpm\b/i.test(topic.trim());
+}
+
+function productManagerPhases(): { name: string; reason: string }[] {
+  return [
+    { name: "产品思维与角色边界", reason: "建立问题、价值、用户与产品决策的基础框架" },
+    { name: "需求与竞品分析", reason: "从表象诉求识别真实任务，并形成可验证的需求假设" },
+    { name: "原型、体验与 PRD", reason: "把方案转成可评审、可实现、可验收的产品表达" },
+    { name: "AI 产品落地与数据验证", reason: "理解模型边界、数据指标、风险与迭代闭环" },
+  ];
+}
 
 /** 稳定 id 用 slug：保留字母/数字/中日韩文字，其余转中划线（本地副本，不动 api 实现） */
 function slugify(s: string): string {
@@ -62,17 +77,16 @@ function topicSkills(topic: string): { name: string; reason: string }[] {
 
 /** 规划预览（title + generic rationale）——onboarding 预览与确认共用同一来源 */
 export function demoPlanOf(goal: LearningGoalInput): { title: string; rationale: PathRationale } {
-  const skills = topicSkills(goal.topic);
-  const weeks = [
-    { week: 1, skills: [skills[0].name] },
-    { week: 2, skills: [skills[1].name] },
-    { week: 3, skills: [skills[2].name] },
-  ];
-  const title = `${goal.topic}学习路径`;
+  const isPm = isProductManagerTopic(goal.topic);
+  const skills = isPm ? productManagerPhases() : topicSkills(goal.topic);
+  const weeks = skills.map((skill, index) => ({ week: index + 1, skills: [skill.name] }));
+  const title = isPm ? "AI 产品经理基础能力路径" : `${goal.topic}学习路径`;
   return {
     title,
     rationale: {
-      kind: "generic",
+      kind: isPm ? "curriculum" : "generic",
+      curriculumTitle: isPm ? "AI 产品经理训练营" : undefined,
+      curriculumVersion: isPm ? "v1.0" : undefined,
       topic: goal.topic,
       goal: goal.goal,
       currentLevel: goal.currentLevel,
@@ -80,7 +94,9 @@ export function demoPlanOf(goal: LearningGoalInput): { title: string; rationale:
       deadlineWeeks: goal.deadlineWeeks,
       preferences: goal.preferences,
       title,
-      rationale: `围绕「${goal.topic}」，按「基础 → 方法 → 实战」推进；每周 ${goal.weeklyHours} 小时，共 ${goal.deadlineWeeks} 周。`,
+      rationale: isPm
+        ? `以产品经理教材的 19 个知识节点为能力骨架，根据你的基础与每周 ${goal.weeklyHours} 小时投入安排顺序；AI 只调整节奏，不删除核心章节。`
+        : `围绕「${goal.topic}」，按「基础 → 方法 → 实战」推进；每周 ${goal.weeklyHours} 小时，共 ${goal.deadlineWeeks} 周。`,
       skills,
       weeks,
       goalProfile: goalProfileOf(goal),
@@ -133,38 +149,45 @@ function nodeResources(
 export function buildDemoTopicBundle(goal: LearningGoalInput): DemoTopicBundle {
   const generatedAt = new Date().toISOString();
   const topicSlug = slugify(goal.topic);
-  const skills = topicSkills(goal.topic);
-  const title = `${goal.topic}学习路径`;
+  const isPm = isProductManagerTopic(goal.topic);
+  const skills = isPm ? productManagerPhases() : topicSkills(goal.topic);
+  const title = isPm ? "AI 产品经理基础能力路径" : `${goal.topic}学习路径`;
   const now = generatedAt;
 
-  // 1) 节点：镜像 buildSkillItems —— 3 技能 → 3 个 gen- 节点，各带 2 条资源证据
-  const nodes: KnowledgeNode[] = skills.map((skill, i) => {
-    const skillSlug = slugify(skill.name);
-    const nodeId = `gen-${topicSlug}-${skillSlug}`;
-    const prerequisiteIds =
-      i === 0 ? [] : [`gen-${topicSlug}-${slugify(skills[i - 1].name)}`];
-    return {
-      id: nodeId,
-      title: skill.name,
-      chapter: `第 ${i + 1} 周`,
-      sequence: i + 1,
-      status: i === 0 ? ("available" as const) : ("locked" as const),
-      prerequisiteIds,
-      estimatedMinutes: Math.max(20, Math.round(goal.weeklyHours * 60)),
-      capabilityGoal: skill.reason,
-      completionCriteria: [`能用自己的话讲清「${skill.name}」的核心概念`, "完成对应练习并自评"],
-      evidenceCoverage: { hasAB: true, aCount: 1, bCount: 1, cCount: 0, insufficient: false },
-      resources: nodeResources(topicSlug, skillSlug, skill.name, now),
-      scenario: `同事问你「${skill.name}」里一个概念怎么理解，你要用一次真实对话把它讲清。`,
-    };
-  });
+  // 产品经理主题复用已策展的完整 19 节点教材；其他主题使用三段式派生。
+  const nodes: KnowledgeNode[] = isPm
+    ? PATH_PM.nodes.map((node, index) => ({
+        ...node,
+        status: index === 0 ? ("available" as const) : ("locked" as const),
+        resources: node.resources.map((resource) => ({ ...resource })),
+      }))
+    : skills.map((skill, i) => {
+        const skillSlug = slugify(skill.name);
+        const nodeId = `gen-${topicSlug}-${skillSlug}`;
+        const prerequisiteIds =
+          i === 0 ? [] : [`gen-${topicSlug}-${slugify(skills[i - 1].name)}`];
+        return {
+          id: nodeId,
+          title: skill.name,
+          chapter: `第 ${i + 1} 周`,
+          sequence: i + 1,
+          status: i === 0 ? ("available" as const) : ("locked" as const),
+          prerequisiteIds,
+          estimatedMinutes: Math.max(20, Math.round(goal.weeklyHours * 60)),
+          capabilityGoal: skill.reason,
+          completionCriteria: [`能用自己的话讲清「${skill.name}」的核心概念`, "完成对应练习并自评"],
+          evidenceCoverage: { hasAB: true, aCount: 1, bCount: 1, cCount: 0, insufficient: false },
+          resources: nodeResources(topicSlug, skillSlug, skill.name, now),
+          scenario: `同事问你「${skill.name}」里一个概念怎么理解，你要用一次真实对话把它讲清。`,
+        };
+      });
 
   // 2) 完整路径
   const path: LearningPath = {
-    id: `demo-path-${topicSlug}`,
+    id: isPm ? "demo-path-ai-pm-curriculum" : `demo-path-${topicSlug}`,
     title,
     status: "in_progress",
-    curriculumVersion: "demo-v1",
+    curriculumVersion: isPm ? "v1.0" : "demo-v1",
     goalSummary: goal.goal || `系统学习「${goal.topic}」`,
     weeklyHours: goal.weeklyHours,
     deadline: new Date(new Date(generatedAt).getTime() + goal.deadlineWeeks * 7 * 86400000).toISOString(),

@@ -49,7 +49,11 @@ export function ReviewApiView() {
 
   // 卡片变化 → 重建待复习队列（未 mastered）
   useEffect(() => {
-    setQueue((cards ?? []).filter((c) => c.status !== "mastered"));
+    const timer = window.setTimeout(
+      () => setQueue((cards ?? []).filter((c) => c.status !== "mastered")),
+      0,
+    );
+    return () => window.clearTimeout(timer);
   }, [cards]);
 
   const card = queue[0];

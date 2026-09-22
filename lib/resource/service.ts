@@ -21,8 +21,9 @@ import {
 } from "@/lib/db/schema";
 import { getSearchProvider } from "@/lib/search";
 import type { SearchResult } from "@/lib/search/types";
-import { searchQueriesForNode } from "./queries";
+import { planResourceQueries } from "./query-planner";
 import type { Grade, KnowledgeNode, ResourceType } from "@/lib/types";
+import type { PathRationale } from "@/lib/types";
 
 const MAX_NODES = 12;
 const MAX_RESULTS_PER_QUERY = 8;
@@ -46,7 +47,7 @@ export async function refreshPathResources(
 ): Promise<RefreshResourceResult> {
   const path = (
     await db
-      .select({ id: learningPaths.id })
+      .select({ id: learningPaths.id, title: learningPaths.title, rationale: learningPaths.rationale })
       .from(learningPaths)
       .where(and(eq(learningPaths.id, pathId), eq(learningPaths.userId, userId)))
       .limit(1)
@@ -73,13 +74,23 @@ export async function refreshPathResources(
   };
 
   const nodes = rows.map((r) => r.node).slice(0, MAX_NODES);
+  const currentRationale = (path.rationale ?? {}) as PathRationale;
+  const queryPlan = await planResourceQueries(
+    {
+      topic: currentRationale.topic || path.title,
+      goal: currentRationale.goal,
+      currentLevel: currentRationale.currentLevel,
+    },
+    nodes.map((node) => ({ id: node.id, title: node.title })),
+  );
+  const queriesByNode = new Map(queryPlan.map((item) => [item.nodeId, item.queries]));
 
   // 全库现有非 demo 资源：URL → resourceId，跨节点去重复用（不重复建行）
   const allRes = await db.select().from(resources);
   const urlToId = new Map<string, string>();
   for (const r of allRes) if (!r.isDemo) urlToId.set(normUrl(r.url), r.id);
 
-  for (const [i, node] of nodes.entries()) {
+  for (const node of nodes) {
     const existingLinks = await db
       .select({ id: nodeResources.resourceId })
       .from(nodeResources)
@@ -92,7 +103,7 @@ export async function refreshPathResources(
     result.nodesProcessed++;
     try {
       const candidates: SearchResult[] = [];
-      for (const q of searchQueriesForNode(node, i)) {
+      for (const q of (queriesByNode.get(node.id) ?? []).slice(0, 2)) {
         candidates.push(...(await provider.search(q, { maxResults: MAX_RESULTS_PER_QUERY })));
       }
 
@@ -155,6 +166,8 @@ export async function refreshPathResources(
     }
   }
 
+  await updatePathEvidenceSummary(path.id, currentRationale, nodes.map((node) => node.id), queryPlan);
+
   return result;
 }
 
@@ -215,4 +228,43 @@ function normTitle(s: string): string {
     .toLowerCase()
     .replace(/[\s，。、·\-_（）()【】[]{}:：;；'"“”]/g, "")
     .slice(0, 80);
+}
+
+async function updatePathEvidenceSummary(
+  pathId: string,
+  rationale: PathRationale,
+  nodeIds: string[],
+  queryPlan: Awaited<ReturnType<typeof planResourceQueries>>,
+): Promise<void> {
+  if (nodeIds.length === 0) return;
+  const linked = await db
+    .select({ nodeId: nodeResources.nodeId, grade: resources.grade })
+    .from(nodeResources)
+    .innerJoin(resources, eq(nodeResources.resourceId, resources.id))
+    .where(inArray(nodeResources.nodeId, nodeIds));
+  const resourceNodes = new Set(linked.map((item) => item.nodeId));
+  const coveredNodes = new Set(
+    linked
+      .filter((item) => item.grade === "A" || item.grade === "B")
+      .map((item) => item.nodeId),
+  );
+  const ratio = coveredNodes.size / nodeIds.length;
+  const evidenceConfidence: PathRationale["evidenceConfidence"] =
+    ratio >= 0.8 ? "high" : ratio >= 0.5 ? "medium" : "low";
+  const nextRationale: PathRationale = {
+    ...rationale,
+    searchProviderLabel: getSearchProvider().isReal ? "Tavily 实时检索" : "搜索未配置（Mock 占位）",
+    evidenceConfidence,
+    searchedNodeCount: nodeIds.length,
+    nodesWithResources: resourceNodes.size,
+    totalResourceCount: linked.length,
+    searchQueries: queryPlan.flatMap((item) => item.queries.slice(0, 2)),
+    evidenceCoverageSummary:
+      `已检索 ${nodeIds.length} 个节点，${coveredNodes.size} 个节点具有 A/B 级来源，` +
+      `共关联 ${linked.length} 条公开资料。`,
+  };
+  await db
+    .update(learningPaths)
+    .set({ rationale: nextRationale, lastActivityAt: new Date() })
+    .where(eq(learningPaths.id, pathId));
 }

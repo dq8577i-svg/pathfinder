@@ -5,15 +5,34 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  BookOpenText,
+  Briefcase,
+  Buildings,
+  Command,
+  GearSix,
+  House,
+  List,
+  MagnifyingGlass,
+  Notebook,
+  Path,
+  PresentationChart,
+  Repeat,
+  SignOut,
+  Sparkle,
+  SquaresFour,
+  UsersThree,
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import type { Role } from "@/lib/types";
 import type { Flag } from "@/lib/types";
-import { Badge } from "@/components/ui";
-import { Drawer } from "@/components/overlay";
+import { Badge, Input } from "@/components/ui";
+import { Drawer, Modal } from "@/components/overlay";
 import { DemoTag } from "@/components/states";
+import { ThemeToggle } from "@/components/theme";
 import { TENANT } from "@/lib/demo";
 import { isApiMode } from "@/lib/data-source";
 
@@ -27,36 +46,37 @@ export interface NavItem {
   roles?: Role[];
   /** 内容管理员等专用页在导航上高亮标识 */
   adminOnly?: boolean;
+  icon: React.ElementType;
 }
 
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "主流程",
     items: [
-      { label: "首页", href: "/home" },
-      { label: "学习路径", href: "/path" },
-      { label: "费曼笔记", href: "/notes" },
+      { label: "首页", href: "/home", icon: House },
+      { label: "学习路径", href: "/path", icon: Path },
+      { label: "费曼笔记", href: "/notes", icon: Notebook },
     ],
   },
   {
     label: "强化学习",
     items: [
-      { label: "复习中心", href: "/review", flag: "review_center" },
-      { label: "情境练习场", href: "/labs", flag: "scenario_labs" },
-      { label: "技能雷达", href: "/skills", flag: "skill_radar" },
-      { label: "个人资料库", href: "/library", flag: "personal_library" },
-      { label: "内容运营台", href: "/admin/content", flag: "content_console", roles: ["content_admin"] },
+      { label: "复习中心", href: "/review", flag: "review_center", icon: Repeat },
+      { label: "情境练习场", href: "/labs", flag: "scenario_labs", icon: Sparkle },
+      { label: "技能雷达", href: "/skills", flag: "skill_radar", icon: PresentationChart },
+      { label: "个人资料库", href: "/library", flag: "personal_library", icon: BookOpenText },
+      { label: "内容运营台", href: "/admin/content", flag: "content_console", roles: ["content_admin"], icon: SquaresFour },
     ],
   },
   {
     label: "空间与协作",
     items: [
-      { label: "学习空间", href: "/space", flag: "learning_space" },
-      { label: "多路径", href: "/paths", flag: "multi_path" },
-      { label: "小队", href: "/crews", flag: "crews" },
-      { label: "作品集", href: "/portfolio", flag: "portfolio" },
-      { label: "语义搜索", href: "/search", flag: "semantic_search" },
-      { label: "机构空间", href: `/org/${TENANT.slug}`, flag: "tenant_workspace", roles: ["org_admin"] },
+      { label: "学习空间", href: "/space", flag: "learning_space", icon: SquaresFour },
+      { label: "多路径", href: "/paths", flag: "multi_path", icon: Path },
+      { label: "小队", href: "/crews", flag: "crews", icon: UsersThree },
+      { label: "作品集", href: "/portfolio", flag: "portfolio", icon: Briefcase },
+      { label: "语义搜索", href: "/search", flag: "semantic_search", icon: MagnifyingGlass },
+      { label: "机构空间", href: `/org/${TENANT.slug}`, flag: "tenant_workspace", roles: ["org_admin"], icon: Buildings },
     ],
   },
 ];
@@ -74,7 +94,7 @@ export function visibleNavGroups(role: Role, flags: Record<Flag, boolean>) {
 
 /* ---------------- Topbar ---------------- */
 
-function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
+function Topbar({ onOpenNav, onOpenCommand }: { onOpenNav: () => void; onOpenCommand: () => void }) {
   const profile = useAppStore((s) => s.profile);
   const demoState = useAppStore((s) => s.demoState);
   const signOut = useAppStore((s) => s.signOut);
@@ -93,22 +113,41 @@ function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const setConsoleOpen = useAppStore((s) => s.setConsoleOpen);
 
   return (
-    <header className="sticky top-0 z-40 h-14 border-b border-line bg-surface">
-      <div className="flex h-full items-center gap-3 px-4">
+    <header className="sticky top-0 z-40 h-[72px] border-b border-line bg-[var(--pf-header)] backdrop-blur-xl">
+      <div className="flex h-full items-center gap-3 px-4 lg:px-6">
         <button
           type="button"
           onClick={onOpenNav}
           aria-label="打开导航"
-          className="flex h-11 w-11 items-center justify-center rounded-md text-ink hover:bg-subtle md:hidden"
+          className="pf-interactive flex h-11 w-11 items-center justify-center rounded-md text-ink hover:bg-subtle md:hidden"
         >
-          <span className="text-xl leading-none">☰</span>
+          <List size={21} />
         </button>
 
-        <Link href="/home" className="flex min-w-0 items-center gap-2">
-          <span className="text-base font-semibold tracking-tight text-ink">知径 Pathfinder</span>
+        <Link href="/home" className="flex min-w-[150px] items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-md border border-line bg-subtle text-action">
+            <Path size={19} weight="bold" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold tracking-tight text-ink">知径 Pathfinder</span>
+            <span className="hidden text-[10px] tracking-wide text-ink-3 xl:block">PERSONAL LEARNING OS</span>
+          </span>
         </Link>
 
-        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={onOpenCommand}
+          className="pf-command-surface mx-auto hidden h-11 min-w-0 max-w-[600px] flex-1 items-center gap-3 rounded-lg px-4 text-left text-sm text-ink-2 md:flex"
+          aria-label="打开全局搜索和快捷操作"
+        >
+          <MagnifyingGlass size={17} />
+          <span className="truncate">搜索、提问或切换路径…</span>
+          <kbd className="ml-auto inline-flex items-center gap-1 rounded border border-line bg-subtle px-2 py-1 font-mono text-[11px] text-ink-2">
+            <Command size={12} /> K
+          </kbd>
+        </button>
+
+        <div className="flex-1 md:hidden" />
 
         {demoState !== "normal" ? (
           <button
@@ -124,27 +163,29 @@ function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
         <button
           type="button"
           onClick={() => setConsoleOpen(true)}
-          className="hidden h-11 items-center gap-1.5 rounded-md px-2 text-xs text-ink-2 hover:bg-subtle sm:flex"
+          className="pf-interactive hidden h-11 items-center gap-1.5 rounded-md px-2 text-xs text-ink-2 hover:bg-subtle lg:flex"
           aria-label="打开演示控制台"
         >
           演示控制台
         </button>
 
-        <div className="flex h-11 items-center gap-2 rounded-md px-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-sm font-medium text-white" aria-hidden="true">
+        <ThemeToggle compact />
+
+        <div className="flex h-11 items-center gap-2 rounded-md px-1 sm:px-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-subtle text-sm font-medium text-ink" aria-hidden="true">
             {profile.displayName.slice(0, 1)}
           </div>
           <span className="hidden text-sm text-ink sm:inline">{profile.displayName}</span>
-          <DemoTag />
+          <span className="hidden xl:inline"><DemoTag /></span>
         </div>
 
         <button
           type="button"
           onClick={handleLogout}
-          className="hidden h-11 items-center rounded-md px-3 text-xs font-medium text-ink-2 transition-colors hover:bg-subtle hover:text-ink sm:flex"
+          className="pf-interactive hidden h-11 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-ink-2 hover:bg-subtle hover:text-ink lg:flex"
           aria-label="退出登录"
         >
-          退出
+          <SignOut size={16} /> 退出
         </button>
       </div>
     </header>
@@ -160,25 +201,29 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const groups = visibleNavGroups(role, flags);
 
   return (
-    <nav aria-label="主导航" className="flex flex-col gap-5">
+    <nav aria-label="主导航" className="flex flex-col gap-4">
       {groups.map((group) => (
         <div key={group.label}>
-          <p className="mb-1 px-3 text-xs font-medium text-ink-3">{group.label}</p>
-          <ul className="space-y-0.5">
+          <p className="mb-1 px-3 text-[10px] font-medium uppercase tracking-[0.16em] text-ink-3">{group.label}</p>
+          <ul className="space-y-1">
             {group.items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const Icon = item.icon;
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     onClick={onNavigate}
                     className={cn(
-                      "flex h-11 items-center justify-between rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink-2",
-                      active ? "bg-subtle text-ink" : "text-ink-2 hover:bg-subtle hover:text-ink",
+                      "pf-interactive group flex h-11 items-center gap-3 rounded-md border border-transparent px-3 text-sm font-medium",
+                      active
+                        ? "border-line bg-[var(--pf-active-soft)] text-ink shadow-sm"
+                        : "text-ink-2 hover:bg-[var(--pf-hover)] hover:text-ink",
                     )}
                     aria-current={active ? "page" : undefined}
                   >
-                    {item.label}
+                    <Icon size={18} weight={active ? "fill" : "regular"} className={active ? "text-action" : "text-ink-3 group-hover:text-action"} />
+                    <span className="flex-1">{item.label}</span>
                     {item.roles ? <span className="text-[10px] text-ink-3">管理</span> : null}
                   </Link>
                 </li>
@@ -248,7 +293,29 @@ export const Shell = AppShell;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const pathname = usePathname();
+  const role = useAppStore((s) => s.role);
+  const flags = useAppStore((s) => s.flags);
+  const commandItems = useMemo(
+    () => visibleNavGroups(role, flags).flatMap((group) => group.items),
+    [flags, role],
+  );
+  const filteredCommands = commandItems.filter((item) =>
+    item.label.toLowerCase().includes(commandQuery.trim().toLowerCase()),
+  );
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // 落地页（落地页/登录/注册）与费曼专注模式对话页不套用工作台外壳
   const isLanding = pathname === "/" || pathname === "/login" || pathname === "/register";
@@ -256,18 +323,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (isLanding || isFocus) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <Topbar onOpenNav={() => setMobileNavOpen(true)} />
+    <div className="pf-app-canvas min-h-screen bg-canvas">
+      <Topbar onOpenNav={() => setMobileNavOpen(true)} onOpenCommand={() => setCommandOpen(true)} />
 
       <div className="flex">
-        <aside className="hidden w-60 shrink-0 border-r border-line bg-surface md:block">
-          <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto pf-scroll-thin p-3">
+        <aside className="hidden w-[184px] shrink-0 border-r border-line bg-[var(--pf-sidebar)] backdrop-blur-xl md:block">
+          <div className="sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto p-3 pf-scroll-thin">
             <SidebarNav />
+            <div className="mt-6 border-t border-line pt-3">
+              <Link href="/home" className="pf-interactive flex h-11 items-center gap-3 rounded-md px-3 text-sm text-ink-2 hover:bg-subtle hover:text-ink">
+                <GearSix size={18} className="text-ink-3" /> 设置
+              </Link>
+            </div>
           </div>
         </aside>
 
         <main className="min-w-0 flex-1">
-          <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-8 md:py-8">{children}</div>
+          <div className="mx-auto max-w-[1500px] px-4 py-6 md:px-6 md:py-7 xl:px-8">{children}</div>
         </main>
       </div>
 
@@ -276,6 +348,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <SidebarNav onNavigate={() => setMobileNavOpen(false)} />
         </div>
       </Drawer>
+
+      <Modal
+        open={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        title="搜索与快捷操作"
+        description="输入页面名称，或使用快捷入口继续学习。"
+        width="max-w-xl"
+      >
+        <Input
+          autoFocus
+          value={commandQuery}
+          onChange={(event) => setCommandQuery(event.target.value)}
+          placeholder="搜索学习路径、资料或功能…"
+          aria-label="搜索功能"
+        />
+        <div className="mt-3 max-h-80 overflow-y-auto pf-scroll-thin">
+          {filteredCommands.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setCommandOpen(false)}
+                className="pf-interactive flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-ink-2 hover:bg-subtle hover:text-ink"
+              >
+                <Icon size={18} className="text-action" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          <Link
+            href="/onboarding"
+            onClick={() => setCommandOpen(false)}
+            className="pf-interactive mt-2 flex min-h-11 items-center gap-3 border-t border-line px-3 pt-2 text-sm font-medium text-action"
+          >
+            <Sparkle size={18} /> 创建新的学习路径
+          </Link>
+        </div>
+      </Modal>
     </div>
   );
 }
