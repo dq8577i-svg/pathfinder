@@ -75,18 +75,27 @@ export default function PathsPage() {
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
   useEffect(() => {
+    let timer: number | undefined;
     try {
       const raw = window.localStorage.getItem(PREFS_KEY);
       if (raw) {
         const saved = JSON.parse(raw) as { view?: ViewMode; sort?: SortMode; status?: StatusFilter };
-        if (saved.view === "list" || saved.view === "board") setView(saved.view);
-        if (["activity", "progress", "deadline", "title"].includes(saved.sort ?? "")) setSort(saved.sort!);
-        if (["all", "in_progress", "paused", "completed", "archived", "draft"].includes(saved.status ?? "")) setStatus(saved.status!);
+        timer = window.setTimeout(() => {
+          if (saved.view === "list" || saved.view === "board") setView(saved.view);
+          if (["activity", "progress", "deadline", "title"].includes(saved.sort ?? "")) setSort(saved.sort!);
+          if (["all", "in_progress", "paused", "completed", "archived", "draft"].includes(saved.status ?? "")) setStatus(saved.status!);
+          setPrefsReady(true);
+        }, 0);
+      } else {
+        timer = window.setTimeout(() => setPrefsReady(true), 0);
       }
     } catch {
       /* 无效偏好自动忽略 */
+      timer = window.setTimeout(() => setPrefsReady(true), 0);
     }
-    setPrefsReady(true);
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -271,7 +280,10 @@ export default function PathsPage() {
     });
   }, [paths, query, sort, status]);
 
-  useEffect(() => setPage(1), [query, sort, status, view]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPage(1), 0);
+    return () => window.clearTimeout(timer);
+  }, [query, sort, status, view]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
